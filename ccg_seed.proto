@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+message CCGSeeds {
+    string lang = 1;
+    repeated string categories = 2;
+    repeated CCGSeed seeds = 3;
+}
+
+message CCGSeed {
+    int32 id = 1;
+    repeated string sentence = 2;
+    repeated double cat_probs = 3 [packed = false];
+    repeated double dep_probs = 4 [packed = false];
+}
