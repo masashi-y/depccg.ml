@@ -1,11 +1,16 @@
 [@@@ocaml.warning "-27-30-39"]
 
 
+type matrix = {
+  values : float list;
+  shape : int list;
+}
+
 type ccgseed = {
-  id : int32;
+  id : int;
   sentence : string list;
-  cat_probs : float list;
-  dep_probs : float list;
+  cat_probs : matrix option;
+  dep_probs : matrix option;
 }
 
 type ccgseeds = {
@@ -14,11 +19,19 @@ type ccgseeds = {
   seeds : ccgseed list;
 }
 
+let rec default_matrix 
+  ?values:((values:float list) = [])
+  ?shape:((shape:int list) = [])
+  () : matrix  = {
+  values;
+  shape;
+}
+
 let rec default_ccgseed 
-  ?id:((id:int32) = 0l)
+  ?id:((id:int) = 0)
   ?sentence:((sentence:string list) = [])
-  ?cat_probs:((cat_probs:float list) = [])
-  ?dep_probs:((dep_probs:float list) = [])
+  ?cat_probs:((cat_probs:matrix option) = None)
+  ?dep_probs:((dep_probs:matrix option) = None)
   () : ccgseed  = {
   id;
   sentence;

@@ -7,8 +7,13 @@ message CCGSeeds {
 }
 
 message CCGSeed {
-    int32 id = 1;
+    int32 id = 1 [(ocaml_type) = int_t];
     repeated string sentence = 2;
-    repeated double cat_probs = 3 [packed = false];
-    repeated double dep_probs = 4 [packed = false];
+    Matrix cat_probs = 3;
+    Matrix dep_probs = 4;
+}
+
+message Matrix {
+    repeated double values = 1 [packed = false];
+    repeated int32 shape = 2 [packed = false,(ocaml_type) = int_t];
 }

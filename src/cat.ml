@@ -1,67 +1,132 @@
 
 
-module S = String
-module SS = Str
-module L = List
 open Utils
 
 type feat = string
 
-type cat = S of feat
-         | N of feat
-         | NP of feat
-         | PP of feat
-         | Fwd of cat * cat
-         | Bwd of cat * cat
-         | Punct of string
+type t = [ `S of feat
+         | `N of feat
+         | `NP of feat
+         | `PP of feat
+         | `Fwd of t * t
+         | `Bwd of t * t
+         | `Punct of string]
 
-let string_feat = function
+let s = `S ""
+and n = `N ""
+and np = `NP ""
+and pp = `PP ""
+and (/:) x y = `Fwd (x, y)
+and (|:) x y = `Bwd (x, y)
+
+let eq_feat = function
+    | ("" | "X" | "nb"), _
+    | _, ("" | "X" | "nb") -> true
+    | x, y -> x = y
+
+let rec (=:=) a b = match (a, b) with
+    | `Fwd (x, y), `Fwd (x', y')
+    | `Bwd (x, y), `Bwd (x', y') -> x =:= x' && y =:= y'
+    | `S f       , `S f'
+    | `N f       , `N f'
+    | `NP f      , `NP f'
+    | `PP f      , `PP f' -> eq_feat (f, f')
+    | `Punct s   , `Punct s' -> s = s'
+    | _ -> false
+
+let show_feat = function
     | "" -> ""
     | f  -> !%"[%s]" f
 
-let rec string_cat ?(bracket=false) = function
-      S (feat)       -> "S" ^ string_feat feat
-    | N (feat)       -> "N" ^ string_feat feat
-    | NP (feat)      -> "NP" ^ string_feat feat
-    | PP (feat)      -> "PP" ^ string_feat feat
-    | Fwd (res, arg)
-    -> !%(if bracket then "(%s/%s)" else "%s/%s")  (string_cat ~bracket:true res) (string_cat ~bracket:true arg)
-    | Bwd (res, arg)
-    -> !%(if bracket then "(%s\\%s)" else "%s\\%s") (string_cat ~bracket:true res) (string_cat ~bracket:true arg)
-    | Punct (str)    -> str
+let rec show_cat ?(bracket=false) = function
+      `S feat  -> "S" ^ show_feat feat
+    | `N feat  -> "N" ^ show_feat feat
+    | `NP feat -> "NP" ^ show_feat feat
+    | `PP feat -> "PP" ^ show_feat feat
+    | `Fwd (x, y)
+    -> !%(if bracket then "(%s/%s)" else "%s/%s")  (show_cat ~bracket:true x) (show_cat ~bracket:true y)
+    | `Bwd (x, y)
+    -> !%(if bracket then "(%s\\%s)" else "%s\\%s") (show_cat ~bracket:true x) (show_cat ~bracket:true y)
+    | `Punct (str)    -> str
 
-type token = Cat of cat
-           | Slash of (cat -> cat -> cat)
+type token = Cat of t
+           | Slash of (t -> t -> t)
 
 exception Parse_error of string
 
-let normalize s = let regex = SS.regexp "\\([]\\[()/\\\\]\\)" in
-                  let s' = SS.global_replace regex " \\1 " s in
-                  SS.split (SS.regexp " +") s'
+let preprocess s = let regex = Str.regexp "\\([]\\[()/\\\\]\\)" in
+                   let s' = Str.global_replace regex " \\1 " s in
+                   Str.split (Str.regexp " +") s'
+
+(* let preprocess s =                                    *)
+(*     let open Buffer in                                *)
+(*     let buf = create 50 in                            *)
+(*     let add = add_char buf in                         *)
+(*     let len = String.length s in                      *)
+(*     let rec iter i = begin                            *)
+(*             match s.[i] with                          *)
+(*             | '(' | '[' -> add ' '                    *)
+(*             | ')' | ']' | '\\' | '/' as c ->          *)
+(*                 add ' '; add c; add ' '               *)
+(*             | c -> add c                              *)
+(*         end;                                          *)
+(*         if i + 1 < len then iter (i+1);               *)
+(*     in iter 0;                                        *)
+(*     let res = String.split_on_char ' ' (contents buf) *)
+(*     in List.iter (p "%s ") res; res                   *)
 
 let atom c f = match c with
-    | "S"   -> S f
-    | "N"   -> N f
-    | "NP"  -> NP f
-    | "PP"  -> PP f
+    | "S"   -> `S f
+    | "N"   -> `N f
+    | "NP"  -> `NP f
+    | "PP"  -> `PP f
     | _ -> raise (Parse_error c)
 
+(* (X\Y)/Y (X/Y)\Y *)
+let is_type_raised = function
+    | `Fwd (`Bwd (x, y), y')
+    | `Bwd (`Fwd (x, y), y') -> y = y'
+    | _ -> false
+
+let is_punct = function
+    | `Punct _ -> true
+    | _ -> false
+
+let rec remove_all_feat = function
+    | `S _        -> s
+    | `N _        -> n
+    | `NP _       -> np
+    | `PP _       -> pp
+    | `Fwd (x, y) -> remove_all_feat x /: remove_all_feat y
+    | `Bwd (x, y) -> remove_all_feat x |: remove_all_feat y
+    | c           -> c
+
+let rec remove_some_feat feats = 
+    let open List in function
+    | `S f when mem f feats  -> s
+    | `N f when mem f feats  -> n
+    | `NP f when mem f feats -> np
+    | `PP f when mem f feats -> pp
+    | `Fwd (x, y)
+        -> remove_some_feat feats x /: remove_some_feat feats y
+    | `Bwd (x, y)
+        -> remove_some_feat feats x |: remove_some_feat feats y
+    | c -> c
+
 let parse_cat str =
-    let fwd res arg = Fwd (res, arg)
-    and bwd res arg = Bwd (res, arg) in
     (* shift-reduce parser *)
     let rec parse stack = function
         | [] -> begin
            (* consumed all the input *)
            match stack with
-           | [Cat res] -> res
-           | [Cat arg; Slash f; Cat res] -> f res arg
+           | [Cat x] -> x
+           | [Cat y; Slash f; Cat x] -> f x y
            | _ -> raise (Parse_error str)
         end
         | head :: rest -> begin
             match head with
             | "," | "." | ";" | ":" | "LRB" | "RRB" | "conj" as s
-                -> parse (Cat (Punct s) :: stack) rest
+                -> parse (Cat (`Punct s) :: stack) rest
             | "S" | "N" | "NP" | "PP" as s
             -> begin
                 (* see if a feature value follows *)
@@ -74,80 +139,47 @@ let parse_cat str =
             | ")" -> begin
                 (* reduce top three items into a cat *)
                 match stack with
-                  Cat arg :: Slash f :: Cat res :: ss
-                    -> parse ((Cat (f res arg)) :: ss) rest
+                  Cat y :: Slash f :: Cat x :: ss
+                    -> parse ((Cat (f x y)) :: ss) rest
                 | _ -> raise (Parse_error str)
                end
-            | "/"  -> parse (Slash fwd :: stack) rest
-            | "\\" -> parse (Slash bwd :: stack) rest
+            | "/"  -> parse (Slash (/:) :: stack) rest
+            | "\\" -> parse (Slash (|:) :: stack) rest
             | _ -> raise (Parse_error str)
         end
-    in parse [] (normalize str)
+    in parse [] (preprocess str)
 
-let read_cats file =
-    let parse l = Scanf.sscanf l "%s %i" (fun s _ -> (parse_cat s))
-    in L.map parse (read_lines file)
-
-let cats = read_cats "/Users/masashi-y/depccg/models/tri_headfirst/target.txt"
-
-let is_type_raised = function
-    | Fwd (res, arg) -> res = arg
-    | Bwd (res, arg) -> res = arg
-    | _ -> false
-
-let is_punct = function
-    | Punct _ -> true
-    | _ -> false
-
-type combinator =
-      FwdApp
-    | BwdApp
-    | FwdCmp
-    | BwdCmp
-    | GenFwdCmp
-    | GenBwdCmp
-    | CNJ            (* Conjunction *)
-    | LRP            (* LeftRemovePunctuation *)
-    | RRP            (* RightRemovePunctuation *)
-    | CommaVPtoADV   (* CommaAndVerbPhraseToAdverb *)
-    | Intro
-    | Unary
-
-let string_combinator = function
-    | FwdApp       -> ">"
-    | BwdApp       -> "<"
-    | FwdCmp       -> ">B"
-    | BwdCmp       -> "<B"
-    | GenFwdCmp    -> ">B1"
-    | GenBwdCmp    -> "<B1"
-    | CNJ          -> "<P>"
-    | LRP          -> "<rp>"
-    | RRP          -> "<rp>"
-    | CommaVPtoADV -> "<*>"
-    | Intro        -> "<*>"
-    | Unary        -> "<u>"
-
-let rec remove_feat = function
-    | S _            -> S ""
-    | N _            -> N ""
-    | NP _           -> NP ""
-    | PP _           -> PP ""
-    | Fwd (res, arg) -> Fwd (remove_feat res, remove_feat arg)
-    | Bwd (res, arg) -> Bwd (remove_feat res, remove_feat arg)
-    | c              -> c
-
-let () =
-    (* L.iter (fun c -> string_cat c |> print_endline) cats *)
+let read_ccgseeds file =
     let bytes = 
-        let ic = open_in "ccg.seeds" in 
+        let ic = open_in file in 
         let len = in_channel_length ic in 
         let bytes = Bytes.create len in 
         really_input ic bytes 0 len; 
         close_in ic; 
         bytes 
-    in 
-    let res = Ccg_seed_pb.decode_ccgseeds (Pbrt.Decoder.of_bytes bytes) in
-    print_endline res.lang;
-    print_endline (S.concat " " res.categories);
-    L.iter (fun x -> print_endline (!%"%f" x)) (let h = L.hd res.seeds in h.cat_probs);
-    (* L.iter print_endline res.categories *)
+    in Ccg_seed_pb.decode_ccgseeds (Pbrt.Decoder.of_bytes bytes)
+
+let read_cats file =
+    let parse l = Scanf.sscanf l "%s %i" (fun s _ -> (parse_cat s))
+    in List.map parse (read_lines file)
+
+let not_comment s = if String.length s = 0 then false
+    else match s.[0] with
+    | '#' -> false
+    | _ -> true
+
+let read_unary_rules file =
+    let res = Hashtbl.create 20 in
+    let add_entry k v = Hashtbl.add res (parse_cat k) (parse_cat v) in
+    let parse l = Scanf.sscanf l "%s %s" add_entry in
+    read_lines file |> List.filter (not_comment) |> List.iter parse;
+    res
+
+let read_binary_rules file =
+    let res = Hashtbl.create 2000 in
+    let parse_cat' c = remove_some_feat ["X"; "nb"] (parse_cat c) in
+    let add_entry k v = Hashtbl.add res (parse_cat' k, parse_cat' v) true in
+    let parse l = Scanf.sscanf l "%s %s" add_entry in
+    read_lines file |> List.filter (not_comment) |> List.iter parse;
+    res
+

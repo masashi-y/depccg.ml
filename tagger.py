@@ -35,8 +35,10 @@ for sentence, (i, _, (cat_probs, dep_probs)) in zip(sentences, res):
     seed = seeds.seeds.add()
     seed.id = i
     seed.sentence.extend(sentence)
-    seed.cat_probs.extend(cat_probs.flatten().astype(float).tolist())
-    seed.dep_probs.extend(dep_probs.flatten().astype(float).tolist())
+    seed.cat_probs.values.extend(cat_probs.flatten().astype(float).tolist())
+    seed.cat_probs.shape.extend(list(cat_probs.shape))
+    seed.dep_probs.values.extend(dep_probs.flatten().astype(float).tolist())
+    seed.dep_probs.shape.extend(list(dep_probs.shape))
 
 log("writing results to : %s" % args.out)
 with open(args.out, "wb") as f:

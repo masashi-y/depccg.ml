@@ -19,7 +19,7 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   name='ccg_seed.proto',
   package='',
   syntax='proto3',
-  serialized_pb=_b('\n\x0e\x63\x63g_seed.proto\"E\n\x08\x43\x43GSeeds\x12\x0c\n\x04lang\x18\x01 \x01(\t\x12\x12\n\ncategories\x18\x02 \x03(\t\x12\x17\n\x05seeds\x18\x03 \x03(\x0b\x32\x08.CCGSeed\"U\n\x07\x43\x43GSeed\x12\n\n\x02id\x18\x01 \x01(\x05\x12\x10\n\x08sentence\x18\x02 \x03(\t\x12\x15\n\tcat_probs\x18\x03 \x03(\x01\x42\x02\x10\x00\x12\x15\n\tdep_probs\x18\x04 \x03(\x01\x42\x02\x10\x00\x62\x06proto3')
+  serialized_pb=_b('\n\x0e\x63\x63g_seed.proto\"E\n\x08\x43\x43GSeeds\x12\x0c\n\x04lang\x18\x01 \x01(\t\x12\x12\n\ncategories\x18\x02 \x03(\t\x12\x17\n\x05seeds\x18\x03 \x03(\x0b\x32\x08.CCGSeed\"_\n\x07\x43\x43GSeed\x12\n\n\x02id\x18\x01 \x01(\x05\x12\x10\n\x08sentence\x18\x02 \x03(\t\x12\x1a\n\tcat_probs\x18\x03 \x01(\x0b\x32\x07.Matrix\x12\x1a\n\tdep_probs\x18\x04 \x01(\x0b\x32\x07.Matrix\"/\n\x06Matrix\x12\x12\n\x06values\x18\x01 \x03(\x01\x42\x02\x10\x00\x12\x11\n\x05shape\x18\x02 \x03(\x03\x42\x02\x10\x00\x62\x06proto3')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
@@ -94,14 +94,52 @@ _CCGSEED = _descriptor.Descriptor(
       options=None),
     _descriptor.FieldDescriptor(
       name='cat_probs', full_name='CCGSeed.cat_probs', index=2,
-      number=3, type=1, cpp_type=5, label=3,
+      number=3, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='dep_probs', full_name='CCGSeed.dep_probs', index=3,
+      number=4, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  options=None,
+  is_extendable=False,
+  syntax='proto3',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=89,
+  serialized_end=184,
+)
+
+
+_MATRIX = _descriptor.Descriptor(
+  name='Matrix',
+  full_name='Matrix',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='values', full_name='Matrix.values', index=0,
+      number=1, type=1, cpp_type=5, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=_descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\020\000'))),
     _descriptor.FieldDescriptor(
-      name='dep_probs', full_name='CCGSeed.dep_probs', index=3,
-      number=4, type=1, cpp_type=5, label=3,
+      name='shape', full_name='Matrix.shape', index=1,
+      number=2, type=3, cpp_type=2, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -118,13 +156,16 @@ _CCGSEED = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=89,
-  serialized_end=174,
+  serialized_start=186,
+  serialized_end=233,
 )
 
 _CCGSEEDS.fields_by_name['seeds'].message_type = _CCGSEED
+_CCGSEED.fields_by_name['cat_probs'].message_type = _MATRIX
+_CCGSEED.fields_by_name['dep_probs'].message_type = _MATRIX
 DESCRIPTOR.message_types_by_name['CCGSeeds'] = _CCGSEEDS
 DESCRIPTOR.message_types_by_name['CCGSeed'] = _CCGSEED
+DESCRIPTOR.message_types_by_name['Matrix'] = _MATRIX
 
 CCGSeeds = _reflection.GeneratedProtocolMessageType('CCGSeeds', (_message.Message,), dict(
   DESCRIPTOR = _CCGSEEDS,
@@ -140,9 +181,16 @@ CCGSeed = _reflection.GeneratedProtocolMessageType('CCGSeed', (_message.Message,
   ))
 _sym_db.RegisterMessage(CCGSeed)
 
+Matrix = _reflection.GeneratedProtocolMessageType('Matrix', (_message.Message,), dict(
+  DESCRIPTOR = _MATRIX,
+  __module__ = 'ccg_seed_pb2'
+  # @@protoc_insertion_point(class_scope:Matrix)
+  ))
+_sym_db.RegisterMessage(Matrix)
 
-_CCGSEED.fields_by_name['cat_probs'].has_options = True
-_CCGSEED.fields_by_name['cat_probs']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\020\000'))
-_CCGSEED.fields_by_name['dep_probs'].has_options = True
-_CCGSEED.fields_by_name['dep_probs']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\020\000'))
+
+_MATRIX.fields_by_name['values'].has_options = True
+_MATRIX.fields_by_name['values']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\020\000'))
+_MATRIX.fields_by_name['shape'].has_options = True
+_MATRIX.fields_by_name['shape']._options = _descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\020\000'))
 # @@protoc_insertion_point(module_scope)

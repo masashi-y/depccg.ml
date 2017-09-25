@@ -4,11 +4,16 @@
 
 (** {2 Types} *)
 
+type matrix = {
+  values : float list;
+  shape : int list;
+}
+
 type ccgseed = {
-  id : int32;
+  id : int;
   sentence : string list;
-  cat_probs : float list;
-  dep_probs : float list;
+  cat_probs : matrix option;
+  dep_probs : matrix option;
 }
 
 type ccgseeds = {
@@ -20,11 +25,18 @@ type ccgseeds = {
 
 (** {2 Default values} *)
 
+val default_matrix : 
+  ?values:float list ->
+  ?shape:int list ->
+  unit ->
+  matrix
+(** [default_matrix ()] is the default value for type [matrix] *)
+
 val default_ccgseed : 
-  ?id:int32 ->
+  ?id:int ->
   ?sentence:string list ->
-  ?cat_probs:float list ->
-  ?dep_probs:float list ->
+  ?cat_probs:matrix option ->
+  ?dep_probs:matrix option ->
   unit ->
   ccgseed
 (** [default_ccgseed ()] is the default value for type [ccgseed] *)
