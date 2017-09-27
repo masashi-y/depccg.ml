@@ -34,19 +34,49 @@ let iter_along g {cells=chart; index=idx; length=n} i f =
         | Filled cell -> H.iter f cell; iter (j+1)
     in iter 0
 
-let goes_along_row = (fun i j -> (i, j))
-and goes_along_col = (fun i j -> (j, i))
+let row = (fun i j -> (i, j))
+and column = (fun i j -> (j, i))
 
-let iter_along_row c = iter_along goes_along_row c
-and iter_along_col c = iter_along goes_along_col c
+let iter_along_row c = iter_along row c
+and iter_along_col c = iter_along column c
 
-let fold_along g {cells=chart; index=idx; length=n} ~index ~f ~init =
-    let rec iter j res = if j >= n then res
-        else match chart.(idx (g index j)) with
+(*        traverse like this         *)
+(*           * * * * * *             *)
+(*           o o o o o *             *)
+(*           * * * * * *             *)
+(*           o o o * * *             *)
+(*           * * * * * *             *)
+(*           * * * * * *             *)
+let fold_along_row {cells=chart; index=idx; length=n} i f init =
+    let rec iter j res =
+        if j >= (n - i) then res
+        else match chart.(idx (i, j)) with
         | Empty -> iter (j+1) res
         | Filled cell -> iter (j+1) (H.fold f cell res)
     in iter 0 init
 
-let fold_along_row c = fold_along goes_along_row c
-and fold_along_col c = fold_along goes_along_col c
+(*        traverse like this         *)
+(*           * * * o * o             *)
+(*           * * o * o *             *)
+(*           * o * o * *             *)
+(*           o * o * * *             *)
+(*           * o * * * *             *)
+(*           o * * * * *             *)
+let fold_along_diag {cells=chart; index=idx; length=n} i f init =
+    let rec iter (i, j) res = 
+        if j >= n || i < 0 then res
+        else match chart.(idx (i, j)) with
+        | Empty -> iter (i-1, j+1) res
+        | Filled cell -> iter (i-1, j+1) (H.fold f cell res)
+    in iter (i, 0) init
 
+let complete_parses {cells=chart; index=idx; length=n} =
+    let f _ elt l = elt :: l in
+    match chart.(idx (0, n - 1)) with
+    | Empty       -> []
+    | Filled cell -> H.fold f cell []
+
+let n_complete_parses {cells=chart; index=idx; length=n} =
+    match chart.(idx (0, n - 1)) with
+    | Empty       -> 0
+    | Filled cell -> H.fold (fun _ _ n -> n + 1) cell 0

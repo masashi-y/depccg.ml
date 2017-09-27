@@ -9,6 +9,7 @@ FILES[] =
    tree
    chart
    astar
+   main
    ccg_seed_pb
    ccg_seed_types
    utils

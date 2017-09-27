@@ -1,0 +1,10 @@
+*.omc
+*.cmi
+*.cmo
+*.cmx
+*.o
+*.opt
+*.run
+*.swp
+*.pyc
+.omakedb*

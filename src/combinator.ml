@@ -107,16 +107,27 @@ let generalized_backward_composition = function
     | _ -> []
 
 (* PUNCT x --> x\x *)
-let conjunction =
-    let puncts = [","; ";"; "conj"] in function
-    | `Punct "conj", `Bwd ((`NP _) as y, `NP _) -> [y]
-    | `NP _, `Bwd (`NP _, `NP _) -> [np]
-    | _    , `Bwd (`NP _, `NP _) -> []
-    | _    , `N _ -> []
-    | `Punct x, y when List.mem x puncts
-                 && not (is_punct y)
-                 && not (is_type_raised y) -> [y |: y]
-    | _ -> [] 
+let conjunction cs =
+    let conj1 =
+        let puncts = [","; ";"; "conj"] in function
+        | _, `Bwd (`NP _, `NP _)
+        | _, `N _  -> []
+        | `Punct x, y when List.mem x puncts
+                     && not (is_punct y)
+                     && not (is_type_raised y) -> [y |: y]
+        | _ -> [] 
+    in
+    let conj2 = function
+        | `Punct "conj", `Bwd (`NP _, `NP _) -> [np]
+        | _, `N _ -> []
+        | `Punct ",", y when not (is_punct y)
+                          && not (is_type_raised y) -> [y]
+        | _ -> [] 
+    in
+    let conj3 = function
+        | `NP _, `Bwd (`NP _, `NP _) -> [np]
+        | _ -> [] 
+    in List.flatten [conj1 cs; conj2 cs; conj3 cs]
 
 (* , S[ng|pss]\NP --> (S\NP)\(S\NP) *)
 let comma_vp_to_adv = function
@@ -157,30 +168,3 @@ let apply_rules cs rules =
 let combinators = [`FwdApp; `BwdApp; `FwdCmp; `BwdCmp; `GenFwdCmp;
     `GenBwdCmp; `Conj; `RP; `CommaVPtoADV; `ParentDirect]
 
-let cats = read_cats "/Users/masashi-y/depccg/models/tri_headfirst/target.txt"
-
-
-let () =
-    let file = Sys.argv.(1) in
-    let res = read_ccgseeds file in
-    print_endline res.Ccg_seed_types.lang;
-    print_endline (String.concat " " res.Ccg_seed_types.categories);
-    let combinators = [`FwdApp; `BwdApp; `BwdCmp] in
-    let cat1 = parse_cat "NP[aa]" in
-    let cat2 = parse_cat "(S\\NP[X])\\NP[X]" in
-    let cat3 = parse_cat "(S\\NP)/NP" in
-    let cat4 = parse_cat "(S\\NP[aa])/NP" in
-    let cat5 = parse_cat "(S\\NP[X])\\(S\\NP[X])" in
-(* X/Y Z\X --> Z/Y *)
-    let test c1 c2 =
-        let res = List.map (fun c -> apply (c1, c2) c) combinators in
-        match flatten res with
-        | [(_, c3)] -> p "%s %s --> %s\n" (show_cat c1) (show_cat c2) (show_cat c3)
-        | _ -> p "%s %s --> nothing\n" (show_cat c1) (show_cat c2)
-    in
-    test cat1 cat2;
-    test cat3 cat1;
-    test cat4 cat5;
-    let open Ccg_seed_types in
-    let seed = List.hd res.seeds in
-    ()
