@@ -13,9 +13,9 @@ let rec get_unification a b =
     | `NP f, `NP f'
     | `PP f, `PP f' -> begin
             match (f, f') with
-            | "X", "X" -> None
-            | "X", f''
-            | f'', "X" -> if f'' = "" then None else Some f''
+            | `Var _, `Var _ -> None
+            | `Var _, f''
+            | f'', `Var _ -> if Feature.equal (f'', `None) then None else Some f''
             | _ -> None
             end
     | `Punct _ , `Punct _ -> None
@@ -32,10 +32,10 @@ let rec get_unification a b =
     | _ -> error ()
 
 let rec unify_feat c f = match c with
-    | `S "X" -> `S f
-    | `N "X" -> `N f
-    | `NP "X" -> `NP f
-    | `PP "X" -> `PP f
+    | `S (`Var _) -> `S f
+    | `N (`Var _) -> `N f
+    | `NP (`Var _) -> `NP f
+    | `PP (`Var _) -> `PP f
     | `Fwd (x, y) -> unify_feat x f /: unify_feat y f
     | `Bwd (x, y) -> unify_feat x f |: unify_feat y f
     | _ -> c
@@ -80,7 +80,7 @@ let forward_application = function
 
 (* X Y\X --> Y *)  (* S[dcl] S[em]\S[em] --> S[em] *)
 let backward_application = function
-    | `S "dcl", `Bwd (`S "em", `S "em") -> [`S "em"]
+    | `S (`Con "dcl"), `Bwd (`S (`Con "em"), `S (`Con "em")) -> [`S (`Con "em")]
     | x, `Bwd (y, x') when x =:= x' -> [unify y x' x]
     | _ -> []
 
@@ -131,13 +131,13 @@ let conjunction cs =
 
 (* , S[ng|pss]\NP --> (S\NP)\(S\NP) *)
 let comma_vp_to_adv = function
-    | `Punct ",", `Bwd (`S f, `NP _) when f = "ng" || f = "pss"
+    | `Punct ",", `Bwd (`S (`Con f), `NP _) when f = "ng" || f = "pss"
         -> [(s |: np) |: (s |: np)]
     | _ -> []
 
 (* , S[dcl]/S[dcl] --> (S\NP)\(S\NP) *)
 let parenthetical_direct_speech = function
-    | `Punct ",", `Fwd (`S "dcl", `S "dcl")
+    | `Punct ",", `Fwd (`S (`Con "dcl"), `S (`Con "dcl"))
         -> [(s |: np) |: (s |: np)]
     | _ -> []
 

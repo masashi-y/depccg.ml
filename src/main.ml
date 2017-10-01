@@ -26,6 +26,16 @@ let output_results res =
     | "deriv" -> List.iteri (fun i [(_, t)] -> p "ID=%i\n%s\n" i (Tree.show_derivation t)) res
     | _ -> invalid_arg "output_results"
 
+let status =
+"[parser]Camelthorn CCG Parser\n"              ^^
+"[parser]input document size:\t%i\n"           ^^
+"[parser]number of terminal categories:\t%i\n" ^^
+"[parser]unary rule size:\t%i\n"               ^^
+"[parser]seen rule size:\t%i\n"                ^^
+"[parser]nbest:\t%i\n"                         ^^
+"[parser]beta:\t%e\n"                          ^^
+"[parser]output format:\t%s\n"
+
 let () =
     let () = Arg.parse spec (fun s -> paths := s :: !paths) usage in
     let (model, seeds) = match !paths with
@@ -38,8 +48,14 @@ let () =
     and unary_rules = Cat.read_unary_rules (model </> "unary_rules.txt")
     and seen_rules = Cat.read_binary_rules (model </> "seen_rules.txt")
     and rule_cache = Hashtbl.create 1000 in
+    Printf.eprintf status (List.length ss.seeds)
+        n_cats (Hashtbl.length unary_rules) (Hashtbl.length seen_rules)
+        !nbest !beta !out;
+    flush stderr;
+    let t = Sys.time () in
     let res = ListLabels.map ss.seeds
             ~f:(fun s -> Astar.parse (Astar.read_proto_matrix n_cats s)
             ~cat_list ~unary_rules ~seen_rules ~rule_cache
-            ~nbest:(!nbest) ~beta:(!beta) ~unary_penalty:0.1 ())
-    in output_results res
+            ~nbest:(!nbest) ~beta:(!beta) ~unary_penalty:0.1 ()) in
+    Printf.eprintf "\nExecution time: %fs\n" (Sys.time() -. t);
+    output_results res

@@ -2,27 +2,52 @@
 
 open Utils
 
-type feat = string
+module Feature =
+struct
+    type t = [ `None
+             | `Nb
+             | `Var of int
+             | `Con of string]
 
-type t = [ `S of feat
-         | `N of feat
-         | `NP of feat
-         | `PP of feat
+    let equal = function
+        | (`None | `Nb), _
+        | _, (`None | `Nb) -> true
+        | `Var i, `Var i'  -> i = i'
+        | `Con x, `Con y   -> x = y
+        | _ -> false
+
+    let show = function
+        | `None  -> ""
+        | `Nb    -> "[nb]"
+        | `Var _ -> "[X]" (* TODO *)
+        | `Con f -> !%"[%s]" f
+
+    let parse = function
+        | "[" :: feat :: "]" :: rest
+            -> let feat' = begin match feat with
+                | "nb" -> `Nb
+                | "X"  -> `Var 0
+                | f    -> `Con f
+               end in (feat', rest)
+        | rest -> (`None, rest)
+
+end
+
+
+type t = [ `S of Feature.t
+         | `N of Feature.t
+         | `NP of Feature.t
+         | `PP of Feature.t
          | `Fwd of t * t
          | `Bwd of t * t
          | `Punct of string]
 
-let s = `S ""
-and n = `N ""
-and np = `NP ""
-and pp = `PP ""
+let s = `S `None
+and n = `N `None
+and np = `NP `None
+and pp = `PP `None
 and (/:) x y = `Fwd (x, y)
 and (|:) x y = `Bwd (x, y)
-
-let eq_feat = function
-    | ("" | "X" | "nb"), _
-    | _, ("" | "X" | "nb") -> true
-    | x, y -> x = y
 
 let rec (=:=) a b = match (a, b) with
     | `Fwd (x, y), `Fwd (x', y')
@@ -30,19 +55,15 @@ let rec (=:=) a b = match (a, b) with
     | `S f       , `S f'
     | `N f       , `N f'
     | `NP f      , `NP f'
-    | `PP f      , `PP f' -> eq_feat (f, f')
+    | `PP f      , `PP f' -> Feature.equal (f, f')
     | `Punct s   , `Punct s' -> s = s'
     | _ -> false
 
-let show_feat = function
-    | "" -> ""
-    | f  -> !%"[%s]" f
-
 let rec show_cat ?(bracket=false) = function
-      `S feat  -> "S" ^ show_feat feat
-    | `N feat  -> "N" ^ show_feat feat
-    | `NP feat -> "NP" ^ show_feat feat
-    | `PP feat -> "PP" ^ show_feat feat
+      `S feat  -> "S" ^ Feature.show feat
+    | `N feat  -> "N" ^ Feature.show feat
+    | `NP feat -> "NP" ^ Feature.show feat
+    | `PP feat -> "PP" ^ Feature.show feat
     | `Fwd (x, y)
     -> !%(if bracket then "(%s/%s)" else "%s/%s")  (show_cat ~bracket:true x) (show_cat ~bracket:true y)
     | `Bwd (x, y)
@@ -128,13 +149,9 @@ let parse_cat str =
             | "," | "." | ";" | ":" | "LRB" | "RRB" | "conj" as s
                 -> parse (Cat (`Punct s) :: stack) rest
             | "S" | "N" | "NP" | "PP" as s
-            -> begin
-                (* see if a feature value follows *)
-                match rest with
-                "[" :: feat :: "]" :: rest'
-                    -> parse (Cat (atom s feat) :: stack) rest'
-                | _ -> parse (Cat (atom s "") :: stack) rest
-               end
+            -> (* see if a feature value follows *)
+                let (feat, rest') = Feature.parse rest in
+                parse (Cat (atom s feat) :: stack) rest'
             | "(" -> parse stack rest
             | ")" -> begin
                 (* reduce top three items into a cat *)
@@ -177,7 +194,7 @@ let read_unary_rules file =
 
 let read_binary_rules file =
     let res = Hashtbl.create 2000 in
-    let parse_cat' c = remove_some_feat ["X"; "nb"] (parse_cat c) in
+    let parse_cat' c = remove_some_feat [`Var 0; `Nb] (parse_cat c) in
     let add_entry k v = Hashtbl.add res (parse_cat' k, parse_cat' v) true in
     let parse l = Scanf.sscanf l "%s %s" add_entry in
     read_lines file |> List.filter (not_comment) |> List.iter parse;

@@ -17,6 +17,7 @@ FILES[] =
 # FILES = parser lexer \
 #         main
 
+# OCAMLFLAGS += -g
 
 # ocamlfind で探して使うパッケージ
 OCAMLPACKS[] =

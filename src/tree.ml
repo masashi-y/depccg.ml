@@ -3,16 +3,14 @@ open Utils
 
 type t = {cat      : Cat.t;
           op       : Combinator.t;
-          start    : int;
-          length   : int;
           children : t list;
           str      : string}
 
-let make ~cat ~op ~start ~length ~children =
-    {cat=cat; op=op; start=start; length=length; children=children; str=""}
+let make ~cat ~op ~children =
+    {cat=cat; op=op; children=children; str=""}
 
-let terminal cat s start =
-    {cat=cat; op=`Intro; start=start; length=1; children=[]; str=s}
+let terminal cat s =
+    {cat=cat; op=`Intro; children=[]; str=s}
 
 let rec terminals = function
     | {str=""; children=ch} -> List.flatten (List.map terminals ch)
@@ -21,7 +19,6 @@ let rec terminals = function
 let rec preterminals = function
     | {cat=c; op=`Intro} -> [c]
     | {children=ch} -> List.flatten (List.map preterminals ch)
-    | _ -> failwith "error in preterminals"
 
 let rec show_tree = function
     | {cat=c; str=w; op=`Intro}
@@ -32,7 +29,6 @@ let rec show_tree = function
            let n_child = List.length ch in
            let head_is_left = 1 in     (* do not care *)
            !%"(<T %s %i %i> %s)" (Cat.show_cat c) head_is_left n_child w
-    | _ -> failwith "error in show_tree"
 
 let show_derivation tree =
     let open String in
@@ -60,21 +56,22 @@ let show_derivation tree =
                Printf.bprintf buf "%s%s%s\n%s%s\n" (space lwidth) (make (rwidth - lwidth) '-')
                        (Combinator.show_combinator p) (space pad) (Cat.show_cat c);
                rwidth
-        | _ -> failwith "error in show_derivation"
     in
     let ws = terminals tree in
     let cs = List.map Cat.show_cat (preterminals tree) in
     let (cs', ws') = terminal_string (List.combine cs ws) in
     Printf.bprintf buf "%s\n" ws';
     Printf.bprintf buf "%s\n" cs';
-    show 0 tree;
+    let _ = show 0 tree in
     Buffer.contents buf
 
 let sample_tree = let open Cat in
-            make ~cat:s ~op:`FwdApp ~start:0 ~length:3 ~children:
-            [terminal np "Hanako" 1;
-            make ~cat:(s |: np) ~op:`FwdApp ~start:1 ~length:2 ~children:
-                     [terminal ((s |: np) /: np) "beats" 1;
-                      terminal np                "Taro"  2
+            make ~cat:s ~op:`FwdApp ~children:
+            [terminal np "Hanako";
+            make ~cat:(s |: np) ~op:`FwdApp ~children:
+                     [terminal ((s |: np) /: np) "beats";
+                      terminal np                "Taro"
                      ]
             ]
+
+let fail = terminal Cat.np "FAILED"

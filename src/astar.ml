@@ -16,10 +16,14 @@ module P = struct
               in_score  : float;
               out_score : float;
               score     : float;
+              start     : int;
+              length    : int;
               tree      : Tree.t}
 
-    let make ~id ~in_score ~out_score ~tree = {id=id; in_score=in_score;
-                 out_score=out_score; score=in_score +. out_score; tree=tree}
+    let make ~id ~in_score ~out_score ~start ~length ~tree =
+                {id=id; in_score=in_score;
+                out_score=out_score; score=in_score +. out_score;
+                start=start; length=length; tree=tree}
 
     (* Give higher priority to ones with higher scores *)
     let compare {id=i1;score=s1} {id=i2;score=s2} =
@@ -31,24 +35,28 @@ module Q = Psq.Make (K) (P)
 
 module Log =
 struct
-    let loglevel = ref 3
+    let do_log = false
 
-    let set_loglevel n = loglevel := n
+    let blue : (_,_,_,_,_,_) format6 = "\027[34m%s\027[93m"
+    let red  : (_,_,_,_,_,_) format6 = "\027[31m%s\027[93m"
 
-    let bar () = prerr_endline
-        "\027[34m##########################################\027[93m\n"
+    let bar () = 
+        if do_log then prerr_endline
+            ("\027[34m" ^ (String.make 10 '#') ^ "\027[93m\n")
+        else ()
 
     let pop {P.score=s; in_score=in_s; out_score=out_s; id=id; tree=t} =
-    Printf.eprintf "\027[34mPOPPED\027[93m\nID: %i\n%s\ns: %e\nh: %e\ns+h: %e\n"
-            id (T.show_derivation t) in_s out_s s; bar ()
+        if do_log then Printf.eprintf (blue ^^ "\nID: %i\n%s\ns: %e\nh: %e\ns+h: %e\n")
+            "POPPED" id (T.show_derivation t) in_s out_s s; bar ()
 
-    let unary {P.tree=t} =
-        Printf.eprintf "\027[31mUNARY\027[93m\n%s\n" (T.show_derivation t); bar()
+    let unary {P.tree=t} = if do_log then
+        Printf.eprintf (red ^^ "\n%s\n") "UNARY" (T.show_derivation t); bar()
 
-    let cand {P.tree=t} =
-        Printf.eprintf "\027[31mCAND\027[93m\n%s\n" (T.show_derivation t); bar()
-    let binary {P.tree=t} =
-        Printf.eprintf "\027[31mBINARY\027[93m\n%s\n" (T.show_derivation t); bar()
+    let cand {P.tree=t} = if do_log then
+        Printf.eprintf (red ^^ "\n%s\n") "CAND" (T.show_derivation t); bar()
+
+    let binary {P.tree=t} = if do_log then
+        Printf.eprintf (red ^^ "\n%s\n") "BINARY" (T.show_derivation t); bar()
 end
 
 let rec fold_queue_at_most n f init q =
@@ -82,7 +90,7 @@ let compute_outside_scores scores length =
 let combinatory_rules = [`FwdApp; `BwdApp; `FwdCmp; `BwdCmp; `GenFwdCmp;
                         `GenBwdCmp; `Conj; `RP; `CommaVPtoADV; `ParentDirect]
 
-let possible_root_cats = [`S"dcl"; `S"wq"; `S"q"; `S"qem"; `NP""]
+let possible_root_cats = [`S (`Con "dcl"); `S (`Con "wq"); `S (`Con "q"); `S (`Con "qem"); `NP `None]
 
 let parse (sentence, cat_scores, dep_scores)
         ~cat_list
@@ -95,17 +103,9 @@ let parse (sentence, cat_scores, dep_scores)
         ?(beta=0.000001) () =
     let n_words = L.length sentence in
     let index = let i = ref 0 in fun () -> i := succ !i; !i in
-    let new_item cat op ~in_score ~out_score ~children = 
+    let new_item ~in_score ~out_score ~start ~length ~tree = 
         let id = index () in
-        let tree = match children with
-        | [{T.op=`Intro} as t] when op = `Intro -> t
-        | [{T.start=start; length=length}]
-            -> T.make ~cat ~op ~start ~length ~children
-        | [{T.start=start; length=l}; {length=l'}]
-            -> T.make ~cat ~op ~start ~length:(l+l') ~children
-        | _ -> failwith "error in new_item"
-        in
-        let elt = P.make ~id ~in_score ~out_score ~tree
+        let elt = P.make ~id ~in_score ~out_score ~start ~length ~tree
         in (id, elt)
     in
     let best_dep_scores = Array.make n_words neg_infinity
@@ -115,13 +115,12 @@ let parse (sentence, cat_scores, dep_scores)
         best_dep_scores.(w_i) <- M.max_along_row dep_scores w_i;
         let q = LL.fold_left cat_list ~init:Q.empty
         ~f:(fun q (c_i, cat) ->
-            (* Utils.p "(%i, %i)" w_i c_i; *)
             let in_score = M.get cat_scores (w_i, c_i) in
             if in_score > best_cat_scores.(w_i) then
                 best_cat_scores.(w_i) <- in_score;
-            let t = T.terminal cat w w_i in
-            let (id, elt) = new_item cat `Intro
-                                ~children:[t] ~in_score ~out_score:0.0
+            let tree = T.terminal cat w in
+            let (id, elt) = new_item ~in_score ~out_score:0.0
+                          ~start:w_i ~length:1 ~tree
             in Q.add id elt q
             )
             in q :: lst
@@ -134,7 +133,7 @@ let parse (sentence, cat_scores, dep_scores)
     let queue = LL.fold_left init_queues ~init:Q.empty
         ~f:(fun q w_q ->
             fold_queue_at_most prune_size
-                (fun k ({P.score=s; tree={T.start=w_i}} as p) q ->
+                (fun k ({P.score=s; start=w_i} as p) q ->
                 let threshold = (exp best_cat_scores.(w_i)) *. beta in
                 if exp s < threshold then q
                 else
@@ -144,65 +143,67 @@ let parse (sentence, cat_scores, dep_scores)
                 Q.add k {p with P.score=score; out_score=out_score} q)
             q w_q)
     in
-    Utils.p "queue size=%i\n" (Q.size queue);
     (* apply a set of combinatory rules to a pair of categories & caches the rules *)
-    let get_rules cats = if H.mem rule_cache cats then
-                             H.find rule_cache cats
-                         else
-                             (let rules = Combinator.apply_rules cats combinatory_rules
-                             in H.add rule_cache cats rules; rules) in
+    let get_rules cats = try H.find rule_cache cats with Not_found ->
+                        let rules = Combinator.apply_rules cats combinatory_rules in
+                        H.add rule_cache cats rules;
+                        rules in
 
     (* check a pair of cats is seen in a dictionary *)
-    let is_seen (c1, c2) = let prep = Cat.remove_some_feat ["X"; "nb"] in
+    let is_seen (c1, c2) = let prep = Cat.remove_some_feat [`Var 0; `Nb] in
                            H.mem seen_rules (prep c1, prep c2) in
 
     let en_is_acceptable_unary c r = r <> `RP || Cat.is_type_raised c in
 
     (* apply unary rules to a subtree & insert them into the chart *)
     let apply_unaries p q = match p with
-        | {P.tree={T.length=l}} when l = n_words -> q
-        | {P.in_score=s; out_score=out_score; tree={T.cat=c; op=r} as t} ->
+        | {P.length=l} when l = n_words -> q
+        | {P.in_score=s; out_score=out_score; start=start;
+                        length=length; tree={T.cat=c; op=r} as t} ->
              LL.fold_right (H.find_all unary_rules c)
-                ~init:q ~f:(fun c' q ->
-                    if en_is_acceptable_unary c' r then
-                    (let (id, elt) = new_item c' `Unary
-                        ~children:[t] ~out_score
+                ~init:q ~f:(fun cat q ->
+                    if en_is_acceptable_unary cat r then
+                    (let tree = T.make ~cat ~op:`Unary ~children:[t] in
+                     let (id, elt) = new_item
                         ~in_score:(s -. unary_penalty)
+                        ~out_score ~start ~length ~tree
                     in 
-                    Printf.eprintf "%s --> %s\n" (Cat.show_cat c) (Cat.show_cat c');
                     Log.unary elt;
                     Q.add id elt q) else q)
         in
 
     (* apply binary rules to subtrees & insert them into the chart *)
     let apply_binaries ps q = match ps with
-        | {P.in_score=s1; tree={T.cat=c1; start=head; length=l1} as t1},
-          {P.in_score=s2; tree={T.cat=c2; start=dep;  length=l2} as t2} ->
+        | {P.in_score=s1; start=head; length=l1; tree={T.cat=c1} as t1},
+          {P.in_score=s2; start=dep;  length=l2; tree={T.cat=c2} as t2} ->
               if not @@ is_seen (c1, c2) then q
               else
                   (Log.cand (fst ps); LL.fold_right (get_rules (c1, c2))
-                  ~init:q ~f:(fun (rule, c) q ->
-                      let span = l1 + l2 in
+                  ~init:q ~f:(fun (op, cat) q ->
+                      let length = l1 + l2 in
                       let in_score = s1 +. s2 +. M.get dep_scores (dep, head+1)
-                      and out_score = M.get cat_out_scores (head, head + span)
-                                   +. M.get dep_out_scores (head, head + span)
+                      and out_score = M.get cat_out_scores (head, head + length)
+                                   +. M.get dep_out_scores (head, head + length)
                                    -. best_dep_scores.(head) in
-                      let (id, elt) = new_item c rule ~children:[t1; t2] ~in_score ~out_score
+                      let tree = T.make ~cat ~op ~children:[t1; t2] in
+                      let (id, elt) = new_item ~in_score ~out_score ~start:head
+                                               ~length ~tree
                       in
                       Log.binary elt;
                       Q.add id elt q))
         in
 
     (* main chart *)
-    let chart = Chart.make n_words in
+    let chart = Chart.make n_words
+    and goal = Chart.make 1 in
 
     let check_root_cell p q = match p with
-    | {P.in_score=score; tree={T.length=l; cat=c; start=s} as t}
+    | {P.in_score=score; start=s; length=l; tree={T.cat=c} as t}
         when l = n_words && L.mem c possible_root_cats ->
             let dep_score = M.get dep_scores (s, 0) in
             let in_score = score +. dep_score in
-            let id = index () in
-            let elt = P.make ~id ~in_score ~out_score:0.0 ~tree:t in
+            let (id, elt) = new_item ~in_score ~out_score:0.0 ~start:s
+                                   ~length:l ~tree:t in
             Q.add id elt q
     | _ -> q
     in
@@ -212,7 +213,7 @@ let parse (sentence, cat_scores, dep_scores)
         `OK (List.sort P.compare @@ Chart.complete_parses chart)
     else match Q.pop q with
     | None -> `Fail
-    | Some ((_, ({P.tree={T.start=s; length=l; cat=c} as t} as p)), q')
+    | Some ((_, ({P.start=s; length=l; tree={T.cat=c}} as p)), q')
            -> Log.pop p;
               let cell = (s, l - 1) in
               if not @@ Chart.update chart cell c p then astar q' else
@@ -226,7 +227,7 @@ let parse (sentence, cat_scores, dep_scores)
     in
     match astar queue with
     | `OK parses -> List.map (fun {P.score=s; tree=t} -> (s, t)) parses
-    | `Fail -> p "failed to parse: %s" (String.concat " " sentence); []
+    | `Fail      -> [(nan, Tree.fail)]
 
 (* let unary = "/Users/masashi-y/depccg/models/tri_headfirst/unary_rules.txt" *)
 (* let binary = "/Users/masashi-y/depccg/models/tri_headfirst/seen_rules.txt" *)
