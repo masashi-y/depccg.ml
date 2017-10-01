@@ -3,19 +3,21 @@
 TAGGER="python tagger.py"
 THORN="src/thorn.opt"
 
-FORMAT=${1:-"deriv"}
+INPUT=$1
 
-MODEL=${2:-"models/tri_headfirst"}
+FORMAT=${2:-"deriv"}
 
-SEEDFILE=${3:-"ccg.seeds"}
+MODEL=${3:-"models/tri_headfirst"}
+
+SEEDFILE=${4:-"ccg.seeds"}
 
 BATCHSIZE=${5:-16}
 
 NBEST=1
 
-cat - | \
+cat $INPUT | \
   sed -f tokenizer.sed | \
-  sed 's/ _ /_/g' \ |
+  sed 's/ _ /_/g' | \
   $TAGGER --out $SEEDFILE --batchsize $BATCHSIZE $MODEL
 
 $THORN -nbest $NBEST -format $FORMAT $SEEDFILE $MODEL
