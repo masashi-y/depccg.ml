@@ -15,3 +15,8 @@ $ omake
 $ echo "this is a test example." > input.txt
 $ ./run.sh input.txt
 ```
+
+| Parser | labeled F1 | unlabeled F1 |
+|:------:|:----------:|:------------:|
+|depccg  | 88.8% | 94.0% |
+|Camelthorn| 88.9% | 94.1%|
