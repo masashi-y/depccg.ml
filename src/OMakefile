@@ -7,6 +7,7 @@ FILES[] =
    cat
    combinator
    tree
+   cell
    chart
    astar
    main

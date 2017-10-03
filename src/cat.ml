@@ -10,10 +10,10 @@ struct
              | `Con of string]
 
     let equal = function
-        | (`None | `Nb), _
-        | _, (`None | `Nb) -> true
-        | `Var i, `Var i'  -> i = i'
-        | `Con x, `Con y   -> x = y
+        | `Var i, `Var i' -> i = i'
+        | (`None | `Nb | `Var _), _
+        | _, (`None | `Nb | `Var _) -> true
+        | `Con x, `Con y -> x = y
         | _ -> false
 
     let show = function
@@ -59,15 +59,15 @@ let rec (=:=) a b = match (a, b) with
     | `Punct s   , `Punct s' -> s = s'
     | _ -> false
 
-let rec show_cat ?(bracket=false) = function
+let rec show ?(bracket=false) = function
       `S feat  -> "S" ^ Feature.show feat
     | `N feat  -> "N" ^ Feature.show feat
     | `NP feat -> "NP" ^ Feature.show feat
     | `PP feat -> "PP" ^ Feature.show feat
     | `Fwd (x, y)
-    -> !%(if bracket then "(%s/%s)" else "%s/%s")  (show_cat ~bracket:true x) (show_cat ~bracket:true y)
+    -> !%(if bracket then "(%s/%s)" else "%s/%s")  (show ~bracket:true x) (show ~bracket:true y)
     | `Bwd (x, y)
-    -> !%(if bracket then "(%s\\%s)" else "%s\\%s") (show_cat ~bracket:true x) (show_cat ~bracket:true y)
+    -> !%(if bracket then "(%s\\%s)" else "%s\\%s") (show ~bracket:true x) (show ~bracket:true y)
     | `Punct (str)    -> str
 
 type token = Cat of t
@@ -113,6 +113,11 @@ let is_punct = function
     | `Punct _ -> true
     | _ -> false
 
+let is_modifier = function
+    | `Fwd (x, y)
+    | `Bwd (x, y) -> x = y
+    | _ -> false
+
 let rec remove_all_feat = function
     | `S _        -> s
     | `N _        -> n
@@ -134,9 +139,9 @@ let rec remove_some_feat feats =
         -> remove_some_feat feats x |: remove_some_feat feats y
     | c -> c
 
-let parse_cat str =
+let parse str =
     (* shift-reduce parser *)
-    let rec parse stack = function
+    let rec parse' stack = function
         | [] -> begin
            (* consumed all the input *)
            match stack with
@@ -147,24 +152,24 @@ let parse_cat str =
         | head :: rest -> begin
             match head with
             | "," | "." | ";" | ":" | "LRB" | "RRB" | "conj" as s
-                -> parse (Cat (`Punct s) :: stack) rest
+                -> parse' (Cat (`Punct s) :: stack) rest
             | "S" | "N" | "NP" | "PP" as s
             -> (* see if a feature value follows *)
                 let (feat, rest') = Feature.parse rest in
-                parse (Cat (atom s feat) :: stack) rest'
-            | "(" -> parse stack rest
+                parse' (Cat (atom s feat) :: stack) rest'
+            | "(" -> parse' stack rest
             | ")" -> begin
                 (* reduce top three items into a cat *)
                 match stack with
                   Cat y :: Slash f :: Cat x :: ss
-                    -> parse ((Cat (f x y)) :: ss) rest
+                    -> parse' ((Cat (f x y)) :: ss) rest
                 | _ -> raise (Parse_error str)
                end
-            | "/"  -> parse (Slash (/:) :: stack) rest
-            | "\\" -> parse (Slash (|:) :: stack) rest
+            | "/"  -> parse' (Slash (/:) :: stack) rest
+            | "\\" -> parse' (Slash (|:) :: stack) rest
             | _ -> raise (Parse_error str)
         end
-    in parse [] (preprocess str)
+    in parse' [] (preprocess str)
 
 let read_ccgseeds file =
     let bytes = 
@@ -177,8 +182,8 @@ let read_ccgseeds file =
     in Ccg_seed_pb.decode_ccgseeds (Pbrt.Decoder.of_bytes bytes)
 
 let read_cats file =
-    let parse l = Scanf.sscanf l "%s %i" (fun s _ -> (parse_cat s))
-    in List.map parse (read_lines file)
+    let scan l = Scanf.sscanf l "%s %i" (fun s _ -> (parse s))
+    in List.map scan (read_lines file)
 
 let not_comment s = if String.length s = 0 then false
     else match s.[0] with
@@ -187,16 +192,24 @@ let not_comment s = if String.length s = 0 then false
 
 let read_unary_rules file =
     let res = Hashtbl.create 20 in
-    let add_entry k v = Hashtbl.add res (parse_cat k) (parse_cat v) in
+    let add_entry k v = Hashtbl.add res (parse k) (parse v) in
     let parse l = Scanf.sscanf l "%s %s" add_entry in
-    read_lines file |> List.filter (not_comment) |> List.iter parse;
+    read_lines file |> List.filter not_comment |> List.iter parse;
     res
 
 let read_binary_rules file =
     let res = Hashtbl.create 2000 in
-    let parse_cat' c = remove_some_feat [`Var 0; `Nb] (parse_cat c) in
-    let add_entry k v = Hashtbl.add res (parse_cat' k, parse_cat' v) true in
+    let parse' c = remove_some_feat [`Var 0; `Nb] (parse c) in
+    let add_entry k v = Hashtbl.add res (parse' k, parse' v) true in
     let parse l = Scanf.sscanf l "%s %s" add_entry in
-    read_lines file |> List.filter (not_comment) |> List.iter parse;
+    read_lines file |> List.filter not_comment |> List.iter parse;
     res
 
+let read_cat_dict cat_list file =
+    let res = Hashtbl.create 7000 in
+    let scan l = match String.split_on_char '\t' l with
+    | w :: cs -> let v = List.map (fun c -> List.mem c cs) cat_list in
+                 Hashtbl.add res w (Array.of_list v)
+    | _ -> invalid_arg "read_cat_dict" in
+    read_lines file |> List.filter not_comment |> List.iter scan;
+    res
