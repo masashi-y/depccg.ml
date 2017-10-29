@@ -4,6 +4,7 @@ PROGRAM = thorn
 # ソースファイルを拡張し抜きで1行に一つずつ書く。
 # 後ろにスペースを付けないこと。
 FILES[] =
+   feat
    cat
    combinator
    tree

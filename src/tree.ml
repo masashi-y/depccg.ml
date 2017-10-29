@@ -1,4 +1,5 @@
 
+module Cat = Cat.EnglishCategories
 open Utils
 
 type t = {cat      : Cat.t;

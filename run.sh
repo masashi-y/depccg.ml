@@ -19,15 +19,17 @@ usage() {
     echo "Usage: $PROGNAME [OPTIONS] FILE"
     echo "  This script is ~."
     echo
+    echo "Argument:"
+    echo "  FILE              : input file (either raw text or seed file (*.seeds)"
     echo "Options:"
-    echo "  -h, --help"
-    echo "  -f, --format"
-    echo "  -m, --model"
-    echo "  -s, --seed"
-    echo "  -b, --batchsize"
-    echo "  -n, --nbest"
-    echo "  -t, --tokenize"
-    echo "  -v, --beta"
+    echo "  -f, --format      : output format {deriv,auto,xml} [$FORMAT]"
+    echo "  -m, --model       : path to model directory [$MODEL]"
+    echo "  -s, --seed        : seed file the supertagger outputs [$SEEDFILE]"
+    echo "  -b, --batchsize   : batch size in tagger [$BATCHSIZE]"
+    echo "  -n, --nbest       : number of parses for each sentence [$NBEST]"
+    echo "  -t, --tokenize    : apply tokenization to raw text [false]"
+    echo "  -v, --beta        : beta value used in pruning [$BETA]"
+    echo "  -h, --help        : show this text"
     echo
     exit 1
 }

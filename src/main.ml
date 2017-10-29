@@ -1,6 +1,9 @@
 
 open Ccg_seed_types
 open Utils
+module Cat = Cat.EnglishCategories
+
+module EnAstarParser = Astar.MakeAStarParser (Astar.EnglishGrammar)
 
 let (</>) = Filename.concat
 
@@ -47,6 +50,18 @@ let progress_map ~f lst =
     Printf.eprintf "\b\r[parser] done         \n";
     res
 
+let read_proto_matrix n_cats = 
+    let open Ccg_seed_types in
+    let error () = failwith "error in read_proto_matrix" in
+    let convert = function
+        | {values=v; shape=[i; j]} -> Matrix.reshape (Matrix.of_list v) (i, j)
+        | _ -> error ()
+    in function
+    | {sentence=s;
+       cat_probs=Some c;
+       dep_probs=Some p} -> (s, convert c, convert p)
+    | _ -> error ()
+
 let () =
     let () = Arg.parse spec (fun s -> paths := s :: !paths) usage in
     let (model, seeds) = match !paths with
@@ -57,8 +72,7 @@ let () =
     let cat_list = Utils.enumerate (List.map Cat.parse ss.categories)
     and n_cats = (List.length ss.categories)
     and unary_rules = Cat.read_unary_rules (model </> "unary_rules.txt")
-    and seen_rules = Cat.read_binary_rules (model </> "seen_rules.txt")
-    and rule_cache = Hashtbl.create 1000 in
+    and seen_rules = Cat.read_binary_rules (model </> "seen_rules.txt") in
     let cat_dict = Cat.read_cat_dict ss.categories (model </> "cat_dict.txt") in
     Printf.eprintf status (List.length ss.seeds)
         n_cats (Hashtbl.length unary_rules) (Hashtbl.length seen_rules)
@@ -66,8 +80,8 @@ let () =
     flush stderr;
     let t = Sys.time () in
     let res = progress_map ss.seeds
-            ~f:(fun s -> Astar.parse (Astar.read_proto_matrix n_cats s)
-            ~cat_list ~unary_rules ~seen_rules ~cat_dict ~rule_cache
+            ~f:(fun s -> EnAstarParser.parse (read_proto_matrix n_cats s)
+            ~cat_list ~unary_rules ~seen_rules ~cat_dict
             ~nbest:(!nbest) ~beta:(!beta) ~unary_penalty:0.1 ()) in
     Printf.eprintf "\nExecution time: %fs\n" (Sys.time() -. t);
     output_results res

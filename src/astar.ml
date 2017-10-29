@@ -10,30 +10,57 @@ module P = Cell
 
 module Log = P.Log
 
+module Cat = Cat.EnglishCategories
+
 module K = struct
     type t = int
     let compare (a:int) b = compare a b
 end
 
-module Q = Psq.Make (K) (P)
+(* Agenda *)
+module Q =
+struct
+    include Psq.Make (K) (P)
 
-let rec fold_queue_at_most n f init q =
-    if n <= 0 then init else
-    match Q.pop q with
-    | None -> init
-    | Some ((k, v), q') -> fold_queue_at_most (n-1) f (f k v init) q'
+    let rec fold_at_most n f init q =
+        if n <= 0 then init else
+        match pop q with
+        | None -> init
+        | Some ((k, v), q') -> fold_at_most (n-1) f (f k v init) q'
+end
 
-let read_proto_matrix n_cats = 
-    let open Ccg_seed_types in
-    let error () = failwith "error in read_proto_matrix" in
-    let convert = function
-        | {values=v; shape=[i; j]} -> Matrix.reshape (Matrix.of_list v) (i, j)
-        | _ -> error ()
-    in function
-    | {sentence=s;
-       cat_probs=Some c;
-       dep_probs=Some p} -> (s, convert c, convert p)
-    | _ -> error ()
+module type GRAMMAR =
+sig
+    val combinatory_rules : Combinator.t list
+    val possible_root_cats : Cat.t list
+    val is_acceptable_unary : Cat.t -> Combinator.t -> bool
+    val resolve_dependency : P.t * P.t -> int * int
+end
+
+module EnglishGrammar : GRAMMAR =
+struct
+    let combinatory_rules = [ `FwdApp
+                            ; `BwdApp
+                            ; `FwdCmp
+                            ; `BwdCmp
+                            ; `GenFwdCmp
+                            ; `GenBwdCmp
+                            ; `Conj
+                            ; `RP
+                            ; `CommaVPtoADV
+                            ; `ParentDirect]
+
+    let possible_root_cats = [ `S `DCL
+                             ; `S `WQ
+                             ; `S `Q
+                             ; `S `QEM
+                             ; `NP `None
+                             ; `N `None]
+
+    let is_acceptable_unary c r = r <> `RP || Cat.is_type_raised c
+
+    let resolve_dependency P.({start=head}, {start=dep}) = (head, dep)
+end
 
 let compute_outside_scores scores length =
     let from_left = Array.make (length + 1) 0.0
@@ -45,20 +72,24 @@ let compute_outside_scores scores length =
     done;
     Matrix.init (length+1, length+1) (fun i j -> from_left.(i) +. from_right.(j))
 
-let combinatory_rules = [`FwdApp; `BwdApp; `FwdCmp; `BwdCmp; `GenFwdCmp;
-                        `GenBwdCmp; `Conj; `RP; `CommaVPtoADV; `ParentDirect]
 
-let possible_root_cats =
-    [`S (`Con "dcl"); `S (`Con "wq"); `S (`Con "q"); `S (`Con "qem"); `NP `None; `N `None]
+module MakeAStarParser (Grammar : GRAMMAR) =
+struct
 
-let en_is_acceptable_unary c r = r <> `RP || Cat.is_type_raised c
 
+let rule_cache = ref @@ H.create 1000
+
+let get_rules (c1, c2) = let prep = Cat.remove_some_feat [`Nb] in
+                         let cats = (prep c1, prep c2) in
+                         try H.find !rule_cache cats with Not_found ->
+                         let rules = Combinator.apply_rules cats Grammar.combinatory_rules in
+                         H.add !rule_cache cats rules;
+                         rules
 
 let parse (sentence, cat_scores, dep_scores)
         ~cat_list
         ~unary_rules
         ~seen_rules
-        ~rule_cache
         ~nbest
         ?cat_dict
         ?(prune_size=50)
@@ -105,7 +136,7 @@ let parse (sentence, cat_scores, dep_scores)
     let queue = LL.fold_left init_queues ~init:Q.empty
         ~f:(fun q w_q ->
             Log.onebest (Q.min w_q);
-            fold_queue_at_most prune_size
+            Q.fold_at_most prune_size
                 (fun k (P.{score=s; start=w_i} as p) q ->
                 let threshold = (exp best_cat_scores.(w_i)) *. beta in
                 if exp s < threshold then q
@@ -116,16 +147,8 @@ let parse (sentence, cat_scores, dep_scores)
                 Q.add k {p with P.score=score; out_score=out_score} q)
             q w_q)
     in
-    (* apply a set of combinatory rules to a pair of categories & caches the rules *)
-    let get_rules (c1, c2) = let prep = Cat.remove_some_feat [`Nb] in
-                             let cats = (prep c1, prep c2) in
-                             try H.find rule_cache cats with Not_found ->
-                             let rules = Combinator.apply_rules cats combinatory_rules in
-                             H.add rule_cache cats rules;
-                             rules
-    in
     (* check a pair of cats is seen in a dictionary *)
-    let is_seen (c1, c2) = let prep = Cat.remove_some_feat [`Var 0; `Nb] in
+    let is_seen (c1, c2) = let prep = Cat.remove_some_feat [`Var; `Nb] in
                            H.mem seen_rules (prep c1, prep c2)
     in
     (* apply unary rules to a subtree & insert them into the chart *)
@@ -134,7 +157,7 @@ let parse (sentence, cat_scores, dep_scores)
         | P.{in_score=s; out_score; start; length; tree={T.cat=c; op} as t} ->
              LL.fold_right (H.find_all unary_rules c)
                 ~init:q ~f:(fun cat q ->
-                    if en_is_acceptable_unary cat op then
+                    if Grammar.is_acceptable_unary cat op then
                     (let tree = T.make ~cat ~op:`Unary ~children:[t] in
                      let (id, elt) = new_item tree
                         ~in_score:(s -. unary_penalty)
@@ -142,17 +165,17 @@ let parse (sentence, cat_scores, dep_scores)
                     in 
                     Log.unary elt;
                     Q.add id elt q) else q)
-        in
-
+    in
     (* apply binary rules to subtrees & insert them into the chart *)
     let apply_binaries ps q = match ps with
-        | P.{in_score=s1; start=head; length=l1; tree=T.{cat=c1} as t1},
-          P.{in_score=s2; start=dep;  length=l2; tree=T.{cat=c2} as t2}
+        | P.{in_score=s1; length=l1; tree=T.{cat=c1} as t1},
+          P.{in_score=s2; length=l2; tree=T.{cat=c2} as t2}
           when is_seen (c1, c2) ->
                   Log.cand (fst ps);
                   LL.fold_right (get_rules (c1, c2))
                   ~init:q ~f:(fun (op, cat) q ->
                       let length = l1 + l2 in
+                      let (head, dep) = Grammar.resolve_dependency ps in
                       let in_score = s1 +. s2 +. M.get dep_scores (dep, head+1)
                       and out_score = M.get cat_out_scores (head, head + length)
                                    +. M.get dep_out_scores (head, head + length)
@@ -172,7 +195,7 @@ let parse (sentence, cat_scores, dep_scores)
     in
     let check_root_cell p q = match p with
     | P.{in_score=score; start; length; tree=T.{cat} as tree}
-        when length = n_words && L.mem cat possible_root_cats ->
+        when length = n_words && L.mem cat Grammar.possible_root_cats ->
             let dep_score = M.get dep_scores (start, 0) in
             let in_score = score +. dep_score in
             let (id, elt) = new_item tree ~in_score ~out_score:0.0 ~start
@@ -203,3 +226,4 @@ let parse (sentence, cat_scores, dep_scores)
     | `OK parses -> List.map (fun P.{score; tree} -> (score, tree)) parses
     | `Fail      -> [(nan, Tree.fail)]
 
+end

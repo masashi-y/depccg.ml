@@ -2,6 +2,7 @@
 (* chart cell *)
 
 module T = Tree
+module Cat = Cat.EnglishCategories
 
 type t = {id        : int;
           in_score  : float;

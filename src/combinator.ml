@@ -1,47 +1,6 @@
 
-open Cat
+open Cat.EnglishCategories
 open Utils
-
-let rec get_unification a b =
-    let error () = failwith
-        (!%"error in get_unification: (%s, %s)" (Cat.show a) (Cat.show b))
-    in match (a, b) with
-    | `S f,  `S f'
-    | `N f,  `N f'
-    | `NP f, `NP f'
-    | `PP f, `PP f' -> begin
-            match (f, f') with
-            | (`None | `Var _), (`None | `Var _) -> None
-            | (`None | `Var _), f''
-            | f'', (`None | `Var _) -> Some f''
-            | _ -> None
-            end
-    | `Punct _ , `Punct _ -> None
-    | `Fwd (x, y), `Fwd (x', y')
-    | `Bwd (x, y), `Bwd (x', y')
-        -> let sub1 = get_unification x x'
-           and sub2 = get_unification y y' in
-           begin match sub1, sub2 with
-               | None, Some f
-               | Some f, None -> Some f
-               | None, None   -> None
-               | Some f, Some f' -> Some f (* discarding here f' ... *)
-           end
-    | _ -> error ()
-
-let rec unify_feat c f = match c with
-    | `S (`Var _) -> `S f
-    | `N (`Var _) -> `N f
-    | `NP (`Var _) -> `NP f
-    | `PP (`Var _) -> `PP f
-    | `Fwd (x, y) -> unify_feat x f /: unify_feat y f
-    | `Bwd (x, y) -> unify_feat x f |: unify_feat y f
-    | _ -> c
-
-let unify c a b =
-    match get_unification a b with
-    | Some f -> unify_feat c f
-    | None -> c
 
 type t =
     [ `FwdApp
@@ -78,7 +37,7 @@ let forward_application = function
 
 (* X Y\X --> Y *)  (* S[dcl] S[em]\S[em] --> S[em] *)
 let backward_application = function
-    | `S (`Con "dcl"), `Bwd (`S (`Con "em"), `S (`Con "em")) -> [`S (`Con "em")]
+    | `S `DCL, `Bwd (`S `EM, `S `EM) -> [`S `EM]
     | x, `Bwd (y, x') when x =:= x' -> [unify (if y = x' then x else y) x' x]
     | _ -> []
 
@@ -136,13 +95,13 @@ let conjunction cs =
 
 (* , S[ng|pss]\NP --> (S\NP)\(S\NP) *)
 let comma_vp_to_adv = function
-    | `Punct ",", `Bwd (`S (`Con f), `NP `None) when f = "ng" || f = "pss"
+    | `Punct ",", `Bwd (`S f, `NP `None) when f = `NG || f = `PSS
         -> [(s |: np) |: (s |: np)]
     | _ -> []
 
 (* , S[dcl]/S[dcl] --> (S\NP)/(S\NP) *)
 let parenthetical_direct_speech = function
-    | `Punct ",", `Fwd (`S (`Con "dcl"), `S (`Con "dcl"))
+    | `Punct ",", `Fwd (`S `DCL, `S `DCL)
         -> [(s |: np) /: (s |: np)]
     | _ -> []
 
