@@ -56,18 +56,10 @@ let backward_composition = function
 (* X/Y (Y/Z)|W --> (X/Z)|W *)
 let generalized_forward_composition = function
     | `Fwd (x, y), `Fwd (`Fwd (y', z), w) when y =:= y'
-        -> [unify (if x = y then (y' /: z) /: w else (x /: z) /: w) y y']
+        -> let x' = if x = y then y' else x in [unify ((x' /: z) /: w) y y']
     | `Fwd (x, y), `Bwd (`Fwd (y', z), w) when y =:= y'
-        -> [unify (if x = y then (y' /: z) |: w else (x /: z) |: w) y y']
+        -> let x' = if x = y then y' else x in [unify ((x' /: z) |: w) y y']
     | _ -> []
-
-let generalized_backward_composition = function
-    | `Bwd (`Bwd (x, y), z), `Bwd (w, x') when x =:= x'
-        -> [unify (if w = x' then (x |: y) |: z else (w |: y) |: z) x x']
-    | `Fwd (`Bwd (x, y), z), `Bwd (w, x') when x =:= x'
-        -> [unify (if w = x' then (x |: y) /: z else (w |: y) /: z) x x']
-    | _ -> []
-
 
 (* (X\Y)|Z W\X --> (W\Y)|Z *)
 let generalized_backward_composition = function
@@ -110,9 +102,31 @@ let generalized_backward_composition3 = function
     | _ -> []
 
 
-let get_left = function
-    | `Fwd (x, _) | `Bwd (x, _) -> Some x
-    | _ -> None
+(* X/Y Y\Z --> X\Z *)
+let cross_forward_composition = function
+    | `Fwd (x, y), `Bwd (y', z) when y =:= y'
+        -> let x' = if x = y then y else x in [unify (x' |: z) y y']
+    | _ -> []
+
+(* X/Y (Y\Z)|W --> (X\Z)|W *)
+let cross_forward_composition1 = function
+    | `Fwd (x, y), `Fwd (`Bwd (y', z), w) when y =:= y'
+        -> let x' = if x = y then y' else x in [unify ((x' |: z) /: w) y y']
+    | `Fwd (x, y), `Bwd (`Bwd (y', z), w) when y =:= y'
+        -> let x' = if x = y then y' else x in [unify ((x' |: z) |: w) y y']
+    | _ -> []
+
+(* X/Y ((Y\Z)|W)|U --> ((X\Z)|W)|U *)
+let cross_forward_composition2 = function
+    | `Fwd (x, y), `Fwd (`Fwd (`Bwd (y', z), w), u) when y =:= y'
+    -> let x' = if x = y then y' else x in [unify (((x' |: z) /: w) /: u) y y']
+    | `Fwd (x, y), `Bwd (`Fwd (`Bwd (y', z), w), u) when y =:= y'
+    -> let x' = if x = y then y' else x in [unify (((x' |: z) /: w) |: u) y y']
+    | `Fwd (x, y), `Fwd (`Bwd (`Bwd (y', z), w), u) when y =:= y'
+    -> let x' = if x = y then y' else x in [unify (((x' |: z) |: w) /: u) y y']
+    | `Fwd (x, y), `Bwd (`Bwd (`Bwd (y', z), w), u) when y =:= y'
+    -> let x' = if x = y then y' else x in [unify (((x' |: z) |: w) |: u) y y']
+    | _ -> []
 
 (* PUNCT x --> x\x *)
 let conjunction cs =
