@@ -72,3 +72,49 @@ struct
         !res
 end
 
+
+module type TypedMonadType =
+sig
+    type 'a t
+    val empty : 'a t
+    val singleton : 'a -> 'a t
+    val bind : 'a t -> ('a -> 'b t) -> 'b t
+end
+
+
+module TypedMonad (S:TypedMonadType) =
+struct
+    open S
+    let (>>=) = bind
+    let (=<<) f m = m >>= f
+    let fail = empty
+    let return = singleton
+    let rec sequence x = function
+        | [] -> x
+        | f::t -> sequence (x >>= f) t
+    let sequence_ m l = sequence m l; ()
+end
+
+module Option =
+struct
+    module Core =
+    struct
+        type 'a t = 'a option
+        let compare = compare
+        let empty = None
+        let singleton x = Some x
+        let add x _ = Some x
+        let bind x f = match x with
+            | None -> None
+            | Some x -> f x
+        let to_list = function
+            | None -> []
+            | Some x -> [x]
+        let fold f x e = match x with
+            | None -> e
+            | Some x -> f x e
+    end
+
+    include Core
+    include TypedMonad(Core)
+end

@@ -11,6 +11,7 @@ FILES[] =
    cell
    chart
    astar
+   reader
    main
    ccg_seed_pb
    ccg_seed_types

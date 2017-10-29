@@ -61,13 +61,58 @@ let generalized_forward_composition = function
         -> [unify (if x = y then (y' /: z) |: w else (x /: z) |: w) y y']
     | _ -> []
 
-(* (X\Y)|Z W\X --> (W\Y)|Z *)
 let generalized_backward_composition = function
     | `Bwd (`Bwd (x, y), z), `Bwd (w, x') when x =:= x'
         -> [unify (if w = x' then (x |: y) |: z else (w |: y) |: z) x x']
     | `Fwd (`Bwd (x, y), z), `Bwd (w, x') when x =:= x'
         -> [unify (if w = x' then (x |: y) /: z else (w |: y) /: z) x x']
     | _ -> []
+
+
+(* (X\Y)|Z W\X --> (W\Y)|Z *)
+let generalized_backward_composition = function
+    | `Bwd (`Bwd (x, y), z), `Bwd (w, x') when x =:= x'
+        -> let w' = if w = x' then x else w in [unify ((w' |: y) |: z) x x']
+    | `Fwd (`Bwd (x, y), z), `Bwd (w, x') when x =:= x'
+        -> let w' = if w = x' then x else w in [unify ((w' |: y) /: z) x x']
+    | _ -> []
+
+(* ((X\Y)|Z)|W U\X --> ((U\Y)|Z)|W *)
+let generalized_backward_composition2 = function
+    | `Bwd (`Bwd (`Bwd (x, y), z), w), `Bwd (u, x') when x =:= x'
+    -> let u' = if u = x' then x else u in [unify (((u' |: y) |: z) |: w) x x']
+    | `Fwd (`Bwd (`Bwd (x, y), z), w), `Bwd (u, x') when x =:= x'
+    -> let u' = if u = x' then x else u in [unify (((u' |: y) |: z) /: w) x x']
+    | `Fwd (`Fwd (`Bwd (x, y), z), w), `Bwd (u, x') when x =:= x'
+    -> let u' = if u = x' then x else u in [unify (((u' |: y) /: z) /: w) x x']
+    | `Bwd (`Fwd (`Bwd (x, y), z), w), `Bwd (u, x') when x =:= x'
+    -> let u' = if u = x' then x else u in [unify (((u' |: y) /: z) |: w) x x']
+    | _ -> []
+
+(* (((X\Y)|Z)|W)|U S\X --> (((S\Y)|Z)|W)|U *)
+let generalized_backward_composition3 = function
+    | `Bwd (`Bwd (`Bwd (`Bwd (x, y), z), w), u), `Bwd (s, x') when x =:= x'
+-> let s' = if s = x' then x else s in [unify ((((s' |: y) |: z) |: w) |: u) x x']
+    | `Fwd (`Bwd (`Bwd (`Bwd (x, y), z), w), u), `Bwd (s, x') when x =:= x'
+-> let s' = if s = x' then x else s in [unify ((((s' |: y) |: z) |: w) /: u) x x']
+    | `Bwd (`Fwd (`Bwd (`Bwd (x, y), z), w), u), `Bwd (s, x') when x =:= x'
+-> let s' = if s = x' then x else s in [unify ((((s' |: y) |: z) /: w) |: u) x x']
+    | `Fwd (`Fwd (`Bwd (`Bwd (x, y), z), w), u), `Bwd (s, x') when x =:= x'
+-> let s' = if s = x' then x else s in [unify ((((s' |: y) |: z) /: w) /: u) x x']
+    | `Bwd (`Bwd (`Fwd (`Bwd (x, y), z), w), u), `Bwd (s, x') when x =:= x'
+-> let s' = if s = x' then x else s in [unify ((((s' |: y) /: z) |: w) |: u) x x']
+    | `Fwd (`Bwd (`Fwd (`Bwd (x, y), z), w), u), `Bwd (s, x') when x =:= x'
+-> let s' = if s = x' then x else s in [unify ((((s' |: y) /: z) |: w) /: u) x x']
+    | `Bwd (`Fwd (`Fwd (`Bwd (x, y), z), w), u), `Bwd (s, x') when x =:= x'
+-> let s' = if s = x' then x else s in [unify ((((s' |: y) /: z) /: w) |: u) x x']
+    | `Fwd (`Fwd (`Fwd (`Bwd (x, y), z), w), u), `Bwd (s, x') when x =:= x'
+-> let s' = if s = x' then x else s in [unify ((((s' |: y) /: z) /: w) /: u) x x']
+    | _ -> []
+
+
+let get_left = function
+    | `Fwd (x, _) | `Bwd (x, _) -> Some x
+    | _ -> None
 
 (* PUNCT x --> x\x *)
 let conjunction cs =
@@ -132,3 +177,19 @@ let apply_rules cs rules =
 let combinators = [`FwdApp; `BwdApp; `FwdCmp; `BwdCmp; `GenFwdCmp;
     `GenBwdCmp; `Conj; `RP; `CommaVPtoADV; `ParentDirect]
 
+module JC = Cat.JapaneseCategories
+module Test =
+struct
+    open Cat.JapaneseCategories
+    let forward_application = function
+        | `Fwd (x, y), y' when y =:= y' -> [unify (if x = y then y' else x) y y']
+        | _ -> []
+end
+let () =
+    let c1 = JC.parse "(S[mod=adn,form=attr,fin=f]/NP[case=ga,mod=nm,fin=f])" in
+    let c2 = JC.parse "NP[case=ga,mod=nm,fin=f]" in
+    print_endline (JC.show c1);
+    print_endline (JC.show c2);
+    match Test.forward_application (c1, c2) with
+    | [c] -> print_endline (JC.show c)
+    | _ -> ()

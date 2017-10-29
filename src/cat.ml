@@ -6,9 +6,34 @@ open Feat
 
 exception Parse_error of string
 
+module type CATEGORIES =
+sig
+    type feat_t
+    type t
+
+    val s : t
+    val n : t
+    val np : t
+    val pp : t
+    val (/:) : t -> t -> t
+    val (|:) : t -> t -> t
+    val (=:=) : t -> t -> bool
+    val show : bracket:bool -> t -> string
+
+    val is_type_raised : t -> bool
+
+    val is_punct : t -> bool
+    val is_modifier : t -> bool
+    val remove_all_feat : t -> t
+    val remove_some_feat : t -> feat_t -> t
+    val unify : t -> t -> t -> t
+    val parse : string -> t
+end
+
 module Categories (Feature : FEATURE) =
 struct
 
+    (* type feat_t = [`None | Feature.t] *)
     type t = [ `S of Feature.t
              | `N of Feature.t
              | `NP of Feature.t
@@ -162,61 +187,29 @@ struct
             end
         in parse' [] (preprocess str)
 
-    let read_ccgseeds file =
-        let bytes = 
-            let ic = open_in file in 
-            let len = in_channel_length ic in 
-            let bytes = Bytes.create len in 
-            really_input ic bytes 0 len; 
-            close_in ic; 
-            bytes 
-        in Ccg_seed_pb.decode_ccgseeds (Pbrt.Decoder.of_bytes bytes)
-
-    let read_cats file =
-        let scan l = Scanf.sscanf l "%s %i" (fun s _ -> (parse s))
-        in List.map scan (read_lines file)
-
-    let not_comment s = if String.length s = 0 then false
-        else match s.[0] with
-        | '#' -> false
-        | _ -> true
-
-    let read_unary_rules file =
-        let res = Hashtbl.create 20 in
-        let add_entry k v = Hashtbl.add res (parse k) (parse v) in
-        let parse l = Scanf.sscanf l "%s %s" add_entry in
-        read_lines file |> List.filter not_comment |> List.iter parse;
-        res
-
-    let read_cat_dict cat_list file =
-        let res = Hashtbl.create 7000 in
-        let scan l = match String.split_on_char '\t' l with
-        | w :: cs -> let v = List.map (fun c -> List.mem c cs) cat_list in
-                     Hashtbl.add res w (Array.of_list v)
-        | _ -> invalid_arg "read_cat_dict" in
-        read_lines file |> List.filter not_comment |> List.iter scan;
-        res
-
-    let read_binary_rules file =
-        let res = Hashtbl.create 2000 in
-        let add_entry k v = Hashtbl.add res (parse k, parse v) true in
-        let scan l = Scanf.sscanf l "%s %s" add_entry in
-        read_lines file |> List.filter not_comment |> List.iter scan;
-        res
 end
 
-module EnglishCategories =
-struct
-    include Categories (EnglishFeature)
-
-    let read_binary_rules file =
-        let res = Hashtbl.create 2000 in
-        let parse' c = remove_some_feat [`Var; `Nb] (parse c) in
-        let add_entry k v = Hashtbl.add res (parse' k, parse' v) true in
-        let scan l = Scanf.sscanf l "%s %s" add_entry in
-        read_lines file |> List.filter not_comment |> List.iter scan;
-        res
-end
+module EnglishCategories = Categories (EnglishFeature)
 
 module JapaneseCategories = Categories (JapaneseFeature)
+
+(* open JapaneseCategories *)
+let ja_possible_root_cats : JapaneseCategories.t list =
+    [ `NP (`NPf (`NC, `NM, `F))
+    ; `NP (`NPf (`NC, `NM, `T))
+    ; `S  (`Sf (`NM, `ATTR, `T))
+    ; `S  (`Sf (`NM, `BASE, `F))
+    ; `S  (`Sf (`NM, `BASE, `T))
+    ; `S  (`Sf (`NM, `CONT, `F))
+    ; `S  (`Sf (`NM, `CONT, `T))
+    ; `S  (`Sf (`NM, `DA,   `F))
+    ; `S  (`Sf (`NM, `DA,   `T))
+    ; `S  (`Sf (`NM, `HYP,  `T))
+    ; `S  (`Sf (`NM, `IMP,  `F))
+    ; `S  (`Sf (`NM, `IMP,  `T))
+    ; `S  (`Sf (`NM, `R,    `T))
+    ; `S  (`Sf (`NM, `S,    `T))
+    ; `S  (`Sf (`NM, `STEM, `F))
+    ; `S  (`Sf (`NM, `STEM, `T)) ]
+
 

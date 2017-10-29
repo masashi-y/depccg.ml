@@ -135,7 +135,7 @@ struct
 end
 
 
-module JapaneseFeature : FEATURE =
+module JapaneseFeature : FEATURE with type t = ja_feat_t =
 struct
     module V = JapaneseFeatureValue
 
