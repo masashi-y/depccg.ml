@@ -5,6 +5,7 @@ module type FEATURE =
 sig
     type t
 
+    val none : t
     val equal : t * t -> bool
     val show : t -> string
     val parse : string list -> t * string list
@@ -25,6 +26,8 @@ type en_feat_t = [ `None | `Nb | `Var
 module EnglishFeature : FEATURE with type t = en_feat_t =
 struct
     type t = en_feat_t
+
+    let none = `None
 
     let equal = function
         | (`None | `Nb | `Var), _
@@ -140,6 +143,8 @@ struct
     module V = JapaneseFeatureValue
 
     type t = ja_feat_t
+
+    let none = `None
 
     let equal = function
         | `Sf (f1, f2, f3), `Sf (g1, g2, g3)

@@ -9,7 +9,13 @@ exception Parse_error of string
 module type CATEGORIES =
 sig
     type feat_t
-    type t
+    type t = [ `S of feat_t
+             | `N of feat_t
+             | `NP of feat_t
+             | `PP of feat_t
+             | `Fwd of t * t
+             | `Bwd of t * t
+             | `Punct of string]
 
     val s : t
     val n : t
@@ -18,35 +24,36 @@ sig
     val (/:) : t -> t -> t
     val (|:) : t -> t -> t
     val (=:=) : t -> t -> bool
-    val show : bracket:bool -> t -> string
+    val show : ?bracket:bool -> t -> string
 
     val is_type_raised : t -> bool
 
     val is_punct : t -> bool
     val is_modifier : t -> bool
     val remove_all_feat : t -> t
-    val remove_some_feat : t -> feat_t -> t
+    val remove_some_feat : feat_t list -> t -> t
     val unify : t -> t -> t -> t
     val parse : string -> t
 end
 
-module Categories (Feature : FEATURE) =
+
+module Categories (Feature : FEATURE) : CATEGORIES with type feat_t = Feature.t =
 struct
 
-    (* type feat_t = [`None | Feature.t] *)
-    type t = [ `S of Feature.t
-             | `N of Feature.t
-             | `NP of Feature.t
-             | `PP of Feature.t
+    type feat_t = Feature.t
+    type t = [ `S of feat_t
+             | `N of feat_t
+             | `NP of feat_t
+             | `PP of feat_t
              | `Fwd of t * t
              | `Bwd of t * t
              | `Punct of string]
 
 
-    let s = `S `None
-    and n = `N `None
-    and np = `NP `None
-    and pp = `PP `None
+    let s = `S Feature.none
+    and n = `N Feature.none
+    and np = `NP Feature.none
+    and pp = `PP Feature.none
     and (/:) x y = `Fwd (x, y)
     and (|:) x y = `Bwd (x, y)
 
