@@ -8,11 +8,11 @@ exception Parse_error of string
 
 module type CATEGORIES =
 sig
-    type feat_t
-    type t = [ `S of feat_t
-             | `N of feat_t
-             | `NP of feat_t
-             | `PP of feat_t
+    type feature
+    type t = [ `S of feature
+             | `N of feature
+             | `NP of feature
+             | `PP of feature
              | `Fwd of t * t
              | `Bwd of t * t
              | `Punct of string]
@@ -27,24 +27,25 @@ sig
     val show : ?bracket:bool -> t -> string
 
     val is_type_raised : t -> bool
-
+    val is_functor : t -> bool
     val is_punct : t -> bool
     val is_modifier : t -> bool
     val remove_all_feat : t -> t
-    val remove_some_feat : feat_t list -> t -> t
+    val remove_some_feat : feature list -> t -> t
     val unify : t -> t -> t -> t
     val parse : string -> t
 end
 
 
-module Categories (Feature : FEATURE) : CATEGORIES with type feat_t = Feature.t =
+module Categories (Feature : FEATURE)
+        : CATEGORIES with type feature = Feature.t =
 struct
 
-    type feat_t = Feature.t
-    type t = [ `S of feat_t
-             | `N of feat_t
-             | `NP of feat_t
-             | `PP of feat_t
+    type feature = Feature.t
+    type t = [ `S of feature
+             | `N of feature
+             | `NP of feature
+             | `PP of feature
              | `Fwd of t * t
              | `Bwd of t * t
              | `Punct of string]
@@ -96,6 +97,10 @@ struct
     let is_type_raised = function
         | `Fwd (`Bwd (x, y), y')
         | `Bwd (`Fwd (x, y), y') -> y = y'
+        | _ -> false
+
+    let is_functor = function
+        | `Bwd (_, _) | `Fwd (_, _) -> true
         | _ -> false
 
     let is_punct = function
@@ -199,24 +204,4 @@ end
 module EnglishCategories = Categories (EnglishFeature)
 
 module JapaneseCategories = Categories (JapaneseFeature)
-
-(* open JapaneseCategories *)
-let ja_possible_root_cats : JapaneseCategories.t list =
-    [ `NP (`NPf (`NC, `NM, `F))
-    ; `NP (`NPf (`NC, `NM, `T))
-    ; `S  (`Sf (`NM, `ATTR, `T))
-    ; `S  (`Sf (`NM, `BASE, `F))
-    ; `S  (`Sf (`NM, `BASE, `T))
-    ; `S  (`Sf (`NM, `CONT, `F))
-    ; `S  (`Sf (`NM, `CONT, `T))
-    ; `S  (`Sf (`NM, `DA,   `F))
-    ; `S  (`Sf (`NM, `DA,   `T))
-    ; `S  (`Sf (`NM, `HYP,  `T))
-    ; `S  (`Sf (`NM, `IMP,  `F))
-    ; `S  (`Sf (`NM, `IMP,  `T))
-    ; `S  (`Sf (`NM, `R,    `T))
-    ; `S  (`Sf (`NM, `S,    `T))
-    ; `S  (`Sf (`NM, `STEM, `F))
-    ; `S  (`Sf (`NM, `STEM, `T)) ]
-
 

@@ -6,9 +6,8 @@ PROGRAM = thorn
 FILES[] =
    feat
    cat
-   combinator
+   grammar
    tree
-   cell
    chart
    astar
    reader

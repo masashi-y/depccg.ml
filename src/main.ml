@@ -1,10 +1,24 @@
 
 open Ccg_seed_types
 open Utils
-module Cat = Cat.EnglishCategories
-module L = Reader.EnglishLoader
+module Category = Cat.EnglishCategories
+module Grammar = Grammar.EnglishGrammar
+module EnAstarParser = Astar.MakeAStarParser (Grammar)
+module Tree = EnAstarParser.Tree
+module L =
+struct
+    include Reader.Loader (Category)
+    open Category
 
-module EnAstarParser = Astar.MakeAStarParser (Astar.EnglishGrammar)
+    let read_binary_rules file =
+        let res = Hashtbl.create 2000 in
+        let aaa : Category.feature list = [`Var; `Nb] in
+        let parse' c = Category.remove_some_feat aaa (Category.parse c) in
+        let add_entry k v = Hashtbl.add res (parse' k, parse' v) true in
+        let scan l = Scanf.sscanf l "%s %s" add_entry in
+        read_lines file |> List.filter not_comment |> List.iter scan;
+        res
+end
 
 let (</>) = Filename.concat
 
@@ -58,7 +72,7 @@ let () =
         | _ -> Arg.usage spec usage; exit 1;
     in
     let ss = L.read_ccgseeds seeds in
-    let cat_list = Utils.enumerate (List.map Cat.parse ss.categories)
+    let cat_list = Utils.enumerate (List.map Category.parse ss.categories)
     and n_cats = (List.length ss.categories)
     and unary_rules = L.read_unary_rules (model </> "unary_rules.txt")
     and seen_rules = L.read_binary_rules (model </> "seen_rules.txt") in

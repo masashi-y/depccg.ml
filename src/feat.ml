@@ -15,17 +15,17 @@ end
 
 
 
-type en_feat_t = [ `None | `Nb | `Var
-                     | `ADJ | `AS | `ASUP | `B | `BEM
-                     | `DCL | `EM | `EXPL | `FOR | `FRG
-                     | `INTJ | `INV | `NG | `NUM
-                     | `POSS | `PSS | `PT | `Q | `QEM
-                     | `THR | `TO | `WQ ]
+type en_feature = [ `None | `Nb | `Var
+                  | `ADJ | `AS | `ASUP | `B | `BEM
+                  | `DCL | `EM | `EXPL | `FOR | `FRG
+                  | `INTJ | `INV | `NG | `NUM
+                  | `POSS | `PSS | `PT | `Q | `QEM
+                  | `THR | `TO | `WQ ]
 
 
-module EnglishFeature : FEATURE with type t = en_feat_t =
+module EnglishFeature : FEATURE with type t = en_feature =
 struct
-    type t = en_feat_t
+    type t = en_feature
 
     let none = `None
 
@@ -33,6 +33,7 @@ struct
         | (`None | `Nb | `Var), _
         | _, (`None | `Nb | `Var) -> true
         | x, y -> x = y
+
 
     let show = function
         | `None  -> ""       | `Nb    -> "[nb]"
@@ -48,6 +49,7 @@ struct
         | `Q     -> "[q]"    | `QEM   -> "[qem]"
         | `THR   -> "[thr]"  | `TO    -> "[to]"
         | `WQ    -> "[wq]"
+
 
     let parse = function
         | "[" :: feat :: "]" :: rest
@@ -68,10 +70,12 @@ struct
                in (feat', rest)
         | rest -> (`None, rest)
 
+
     let unify = function
         | (`None | `Var), (`None | `Var) -> None
         | (`None | `Var), f | f, (`None | `Var) -> Some f
         | _ -> None
+
 
     let is_var = function
         | `Var -> true
@@ -85,9 +89,9 @@ type f_value = [ `X1 | `X2 | `GA | `NC | `NI | `O | `TO
                | `T | `F]
 
 
-type ja_feat_t = [ `None
-                 | `Sf of f_value * f_value * f_value
-                 | `NPf of f_value * f_value * f_value]
+type ja_feature = [ `None
+                  | `Sf of f_value * f_value * f_value
+                  | `NPf of f_value * f_value * f_value]
 
 
 module JapaneseFeatureValue =
@@ -98,6 +102,7 @@ struct
         | (`X1 | `X2), _
         | _, (`X1 | `X2) -> true
         | (f, g) -> f = g
+
 
     let show = function
         | `X1   -> "X1"     | `X2   -> "X2"
@@ -111,6 +116,7 @@ struct
         | `HYP  -> "hyp"    | `STEM -> "stem"
         | `DA   -> "da"     | `NEG  -> "neg"
         | `T    -> "t"      | `F    -> "f"
+
 
     let parse = function
         | "X1"   -> `X1     | "X2"   -> `X2
@@ -126,10 +132,12 @@ struct
         | "t"    -> `T      | "f"    -> `F
         | rest -> invalid_arg (!%"parse: %s" rest)
 
+
     let unify = function
         | (`X1 | `X2), (`X1 | `X2) -> None
         | (`X1 | `X2), f | f, (`X1 | `X2) -> Some f
         | _ -> None
+
 
     let is_var = function
         | (`X1 | `X2) -> true
@@ -138,11 +146,11 @@ struct
 end
 
 
-module JapaneseFeature : FEATURE with type t = ja_feat_t =
+module JapaneseFeature : FEATURE with type t = ja_feature =
 struct
     module V = JapaneseFeatureValue
 
-    type t = ja_feat_t
+    type t = ja_feature
 
     let none = `None
 
@@ -152,12 +160,14 @@ struct
                 V.equal (f1, g1) && V.equal (f2, g2) && V.equal (f3, g3)
         | _ -> false
 
+
     let show = function
         | `Sf (f1, f2, f3)  ->
             !%"[mod=%s,form=%s,fin=%s]" (V.show f1) (V.show f2) (V.show f3)
         | `NPf (f1, f2, f3) ->
             !%"[case=%s,mod=%s,fin=%s]" (V.show f1) (V.show f2) (V.show f3)
         | `None -> ""
+
 
     let parse =
         let s_f f1 f2 f3  = `Sf (V.parse f1, V.parse f2, V.parse f3)
@@ -171,6 +181,7 @@ struct
                end in (feat', rest)
         | rest -> (`None, rest)
 
+
     let unify = function
         | `Sf (`X1, `X2, f3), (`Sf (_, _, g3) as f)
         | (`Sf (_, _, g3) as f), `Sf (`X1, `X2, f3)
@@ -178,6 +189,7 @@ struct
         | (`NPf (_, _, g3) as f), `NPf (`X1, `X2, f3)
                 -> if V.equal (f3, g3) then Some f else None
         | _ -> None
+
 
     let is_var = function
         | `Sf (f1, f2, f3) | `NPf (f1, f2, f3) ->

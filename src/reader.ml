@@ -67,6 +67,7 @@ struct
         res
 end
 
+module JapaneseLoader = Loader (JapaneseCategories)
 
 let read_proto_matrix n_cats = 
     let open Ccg_seed_types in
