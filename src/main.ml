@@ -2,23 +2,10 @@
 open Ccg_seed_types
 open Utils
 module Category = Cat.EnglishCategories
-module Grammar = Grammar.EnglishGrammar
-module EnAstarParser = Astar.MakeAStarParser (Grammar)
+module EnAstarParser = Astar.EnAstarParser
 module Tree = EnAstarParser.Tree
-module L =
-struct
-    include Reader.Loader (Category)
-    open Category
+module L = Reader.EnglishLoader
 
-    let read_binary_rules file =
-        let res = Hashtbl.create 2000 in
-        let aaa : Category.feature list = [`Var; `Nb] in
-        let parse' c = Category.remove_some_feat aaa (Category.parse c) in
-        let add_entry k v = Hashtbl.add res (parse' k, parse' v) true in
-        let scan l = Scanf.sscanf l "%s %s" add_entry in
-        read_lines file |> List.filter not_comment |> List.iter scan;
-        res
-end
 
 let (</>) = Filename.concat
 
@@ -57,11 +44,11 @@ let status =
 
 let progress_map ~f lst =
     let size = List.length lst in
-    let f' (i, x) = let y = f x in
+    let f' i x = let y = f x in
         Printf.eprintf "\b\r[parser] %i/%i" (i+1) size;
         flush stderr;
         y
-    in let res = List.map f' (Utils.enumerate lst) in
+    in let res = List.mapi f' lst in
     Printf.eprintf "\b\r[parser] done         \n";
     res
 

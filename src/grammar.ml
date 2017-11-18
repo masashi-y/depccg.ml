@@ -1,12 +1,17 @@
 
 (* open Cat.EnglishCategories *)
 open Cat
+open Feat
 open Utils
 (* open Cell *)
 
 module type GRAMMAR =
 sig
-    module Cat : CATEGORIES
+    type feature
+
+    module Feature : FEATURE with type t = feature
+    module Cat : CATEGORIES with type feature = Feature.t
+
     type t
     type rule = Cat.t * Cat.t -> Cat.t list
 
@@ -21,6 +26,11 @@ sig
     val possible_root_cats : Cat.t list
     val is_acceptable_unary : Cat.t -> t -> bool
     val resolve_dependency : int * int -> int * int (* TODO *)
+
+    val apply_rules_with_cache : (Cat.t * Cat.t, (t * Cat.t) list) Hashtbl.t -> Cat.t * Cat.t -> (t * Cat.t) list
+
+    (* check a pair of cats is seen in a dictionary *)
+    val is_seen : (Cat.t * Cat.t, bool) Hashtbl.t -> Cat.t * Cat.t -> bool
 end
 
 module BaseGrammar (Cat : CATEGORIES) =
@@ -135,9 +145,12 @@ struct
 end
 
 
-module EnglishGrammar : GRAMMAR =
+module EnglishGrammar : GRAMMAR
+    with type feature = en_feature =
 struct
-    module Cat = Cat.EnglishCategories
+    type feature = en_feature
+    module Feature = EnglishFeature
+    module Cat = Categories (Feature)
     module Base = BaseGrammar (Cat)
     open Cat
 
@@ -156,8 +169,7 @@ struct
                              ; `S `WQ
                              ; `S `Q
                              ; `S `QEM
-                             ; `NP `None
-                             ; `N `None]
+                             ; `NP `None]
 
     let combinatory_rules = [`FwdApp; `BwdApp; `FwdCmp; `BwdCmp; `GenFwdCmp;
         `GenBwdCmp; `Conj; `RP; `CommaVPtoADV; `ParentDirect]
@@ -241,15 +253,29 @@ struct
     let apply_rules cs =
         List.flatten @@ List.map (apply cs) combinatory_rules
 
-    let resolve_dependency (dep, head) = (head, dep)
+    let resolve_dependency (head, dep) = (head, dep)
 
     let is_acceptable_unary c r = r <> `RP || Cat.is_type_raised c
+
+    let apply_rules_with_cache cache (c1, c2) =
+                             let prep = Cat.remove_some_feat [`Nb] in
+                             let cats = (prep c1, prep c2) in
+                             try Hashtbl.find cache cats with Not_found ->
+                                 let rules = apply_rules cats in
+                                 Hashtbl.add cache cats rules;
+                                 rules
+
+    let is_seen seen_rules (c1, c2) = let prep = Cat.remove_some_feat [`Var; `Nb]
+                                      in Hashtbl.mem seen_rules (prep c1, prep c2)
 end
 
 
-module JapaneseGrammar : GRAMMAR =
+module JapaneseGrammar : GRAMMAR
+    with type feature = ja_feature =
 struct
-    module Cat = Cat.JapaneseCategories
+    type feature = ja_feature
+    module Feature = JapaneseFeature
+    module Cat = Categories (Feature)
     module Base = BaseGrammar (Cat)
     open Cat
 
@@ -335,8 +361,18 @@ struct
     let apply_rules cs =
         List.flatten @@ List.map (apply cs) combinatory_rules
 
-    let resolve_dependency (head, dep) = (head, dep)
+    let resolve_dependency (dep, head) = (head, dep)
 
     let is_acceptable_unary _ _ = true
+
+    let apply_rules_with_cache cache cats =
+                            try Hashtbl.find cache cats with Not_found ->
+                                let rules = apply_rules cats in
+                                Hashtbl.add cache cats rules;
+                                rules
+
+    (* check a pair of cats is seen in a dictionary *)
+    let is_seen seen_rules cats = Hashtbl.mem seen_rules cats
+
 end
 

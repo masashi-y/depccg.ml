@@ -2,11 +2,13 @@
 open Utils
 open Cat
 
+(*
 module type CATEGORIES =
 sig
     type t
     val parse : string -> t
 end
+*)
 
 module Loader (Cat : CATEGORIES) =
 struct
@@ -55,12 +57,12 @@ end
 
 module EnglishLoader =
 struct
-    module EC = EnglishCategories
-    include Loader (EC)
+    module Cat = EnglishCategories
+    include Loader (Cat)
 
     let read_binary_rules file =
         let res = Hashtbl.create 2000 in
-        let parse' c = EC.remove_some_feat [`Var; `Nb] (EC.parse c) in
+        let parse' c = Cat.remove_some_feat [`Var; `Nb] (Cat.parse c) in
         let add_entry k v = Hashtbl.add res (parse' k, parse' v) true in
         let scan l = Scanf.sscanf l "%s %s" add_entry in
         read_lines file |> List.filter not_comment |> List.iter scan;

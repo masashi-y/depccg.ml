@@ -1,5 +1,7 @@
 
 open Utils
+open Grammar
+open Tree
 module L = List
 module LL = ListLabels
 module M = Matrix
@@ -33,11 +35,12 @@ let compute_outside_scores scores length =
     Matrix.init (length+1, length+1) (fun i j -> from_left.(i) +. from_right.(j))
 
 
-module MakeAStarParser (Grammar : Grammar.GRAMMAR) =
+module MakeAStarParser (Grammar : GRAMMAR) =
 struct
 
+    module Grammar = Grammar
     module Cat = Grammar.Cat
-    module Tree = Tree.Tree (Grammar)
+    module Tree = Tree (Grammar)
     module Cell =
     struct
         type  t = {id        : int;
@@ -48,11 +51,6 @@ struct
                    length    : int;
                    final     : bool;
                    tree      : Tree.t}
-
-        let make ~id ~in_score ~out_score ~start ~length ~tree ~final =
-                    {id=id; in_score=in_score; out_score=out_score;
-                    score=in_score +. out_score; start=start;
-                    length=length; final=final; tree=tree}
 
         (* Give higher priority to ones with higher scores *)
         let compare {id=i1;score=s1} {id=i2;score=s2} =
@@ -65,8 +63,8 @@ struct
 
         let do_log = false
 
-        let blue : (_,_,_,_,_,_) format6 = "\027[34m%s\027[93m"
-        let red  : (_,_,_,_,_,_) format6 = "\027[31m%s\027[93m"
+        let blue = format_of_string "\027[34m%s\027[93m"
+        let red  = format_of_string "\027[31m%s\027[93m"
 
         let bar () = prerr_endline ("\027[34m" ^ (String.make 10 '#') ^ "\027[93m\n")
 
@@ -90,16 +88,6 @@ struct
 
     let rule_cache = ref @@ H.create 1000
 
-    let get_rules cats = try H.find !rule_cache cats with Not_found ->
-                                let rules = Grammar.apply_rules cats in
-                                H.add !rule_cache cats rules;
-                                rules
-
-    (* check a pair of cats is seen in a dictionary *)
-    let is_seen seen_rules cats = match seen_rules with
-        | Some rules -> H.mem rules cats
-        | None -> true
-
     let parse (sentence, cat_scores, dep_scores)
             ~cat_list
             ~unary_rules
@@ -113,15 +101,18 @@ struct
         let index = let i = ref 0 in fun () -> i := succ !i; !i in
         let new_item ?(final=false) tree ~in_score ~out_score ~start ~length = 
             let id = index () in
-            let elt = Cell.make ~id ~in_score ~out_score ~start ~length ~tree ~final
+            let score=in_score +. out_score in
+            let elt = Cell.{id; in_score; out_score; score; start; length; final; tree}
             in (id, elt)
         in
-        let cat_dict = match cat_dict with
-            | Some d -> (fun w i -> try
-                        let arr = Hashtbl.find d w in
-                        arr.(i)
-                    with Not_found -> true)
-            | None -> (fun _ _ -> true)
+        let is_seen cs = match seen_rules with
+            | Some rules -> Grammar.is_seen rules cs
+            | None -> true
+        in
+        let cat_dict w i = match cat_dict with
+            | Some d -> (try let arr = H.find d w in arr.(i)
+                        with Not_found -> true)
+            | None -> true
         in
         let best_dep_scores = Array.make n_words neg_infinity
         and best_cat_scores = Array.make n_words neg_infinity in
@@ -180,9 +171,9 @@ struct
         let apply_binaries ps q = match ps with
             | Cell.{in_score=s1; start=st1; length=l1; tree=Tree.{cat=c1} as t1},
               Cell.{in_score=s2; start=st2; length=l2; tree=Tree.{cat=c2} as t2}
-              when is_seen seen_rules (c1, c2) ->
+              when is_seen (c1, c2) ->
                       Log.cand (fst ps);
-                      LL.fold_right (get_rules (c1, c2))
+                      LL.fold_right (Grammar.apply_rules_with_cache !rule_cache (c1, c2))
                       ~init:q ~f:(fun (op, cat) q ->
                           let length = l1 + l2 in
                           let (head, dep) = Grammar.resolve_dependency (st1, st2) in
@@ -197,7 +188,7 @@ struct
                           Log.binary elt;
                           Q.add id elt q)
             | _ -> q
-            in
+        in
 
         (* main chart *)
         let chart = Chart.make n_words
@@ -216,7 +207,7 @@ struct
         (* main A* loop *)
         let rec astar q =
         if Chart.n_complete_parses goal >= nbest then
-            `OK (List.sort Cell.compare @@ Chart.complete_parses goal)
+            `OK (L.sort Cell.compare @@ Chart.complete_parses goal)
         else match Q.pop q with
         | None -> `Fail
         | Some ((_, (Cell.{start=s; length=l; tree=Tree.{cat}} as p)), q')
@@ -233,20 +224,10 @@ struct
                     |> astar)
         in
         match astar queue with
-        | `OK parses -> List.map (fun Cell.{score; tree} -> (score, tree)) parses
+        | `OK parses -> L.map (fun Cell.{score; tree} -> (score, tree)) parses
         | `Fail      -> [(nan, Tree.fail)]
 
 end
 
-(* let get_rules (c1, c2) = let prep = Cat.remove_some_feat [`Nb] in      *)
-(*                          let cats = (prep c1, prep c2) in              *)
-(*                          try H.find !rule_cache cats with Not_found -> *)
-(*                              let rules = Grammar.apply_rules cats in   *)
-(*                              H.add !rule_cache cats rules;             *)
-(*                              rules                                     *)
-
-(* (* check a pair of cats is seen in a dictionary *)                     *)
-(* let is_seen seen_rules (c1, c2) = match seen_rules with                *)
-(*     | Some rules -> let prep = Cat.remove_some_feat [`Var; `Nb]        *)
-(*                     in H.mem rules (prep c1, prep c2)                  *)
-(*     | None -> true                                                     *)
+module EnAstarParser = MakeAStarParser (EnglishGrammar)
+module JaAstarParser = MakeAStarParser (JapaneseGrammar)

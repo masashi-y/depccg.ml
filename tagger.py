@@ -29,7 +29,7 @@ log("tagging")
 sentences = [i.strip().split(" ") for i in sys.stdin]
 res = tagger.predict_doc(sentences, args.batchsize)
 log("done")
-
+log("writing results to : %s" % args.out)
 seeds = [None for _ in range(len(sentences))]
 for (i, _, (cat_probs, dep_probs)) in res:
     sentence = sentences[i]
@@ -43,7 +43,6 @@ for (i, _, (cat_probs, dep_probs)) in res:
     seeds[i] = seed
 seeds = CCGSeeds(lang="en", categories=tagger.cats, seeds=seeds)
 
-log("writing results to : %s" % args.out)
 with open(args.out, "wb") as f:
     f.write(seeds.SerializeToString())
 log("done")
