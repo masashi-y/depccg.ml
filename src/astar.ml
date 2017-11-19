@@ -92,8 +92,8 @@ struct
             ~cat_list
             ~unary_rules
             ~nbest
-            ?seen_rules
-            ?cat_dict
+            ?(seen_rules=None)
+            ?(cat_dict=None)
             ?(prune_size=50)
             ?(unary_penalty=0.1)
             ?(beta=0.000001) () =
@@ -176,14 +176,13 @@ struct
                       LL.fold_right (Grammar.apply_rules_with_cache !rule_cache (c1, c2))
                       ~init:q ~f:(fun (op, cat) q ->
                           let length = l1 + l2 in
-                          let (head, dep) = Grammar.resolve_dependency (st1, st2) in
+                          let (head, dep) = Grammar.resolve_dependency (st1, st2) (l1, l2) in
                           let in_score = s1 +. s2 +. M.get dep_scores (dep, head+1)
-                          and out_score = M.get cat_out_scores (head, head + length)
-                                       +. M.get dep_out_scores (head, head + length)
+                          and out_score = M.get cat_out_scores (st1, st1 + length)
+                                       +. M.get dep_out_scores (st1, st1 + length)
                                        -. best_dep_scores.(head) in
                           let tree = Tree.make ~cat ~op ~children:[t1; t2] in
-                          let (id, elt) = new_item tree ~in_score ~out_score ~start:head
-                                                   ~length
+                          let (id, elt) = new_item tree ~in_score ~out_score ~start:st1 ~length
                           in
                           Log.binary elt;
                           Q.add id elt q)

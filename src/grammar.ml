@@ -25,7 +25,8 @@ sig
 
     val possible_root_cats : Cat.t list
     val is_acceptable_unary : Cat.t -> t -> bool
-    val resolve_dependency : int * int -> int * int (* TODO *)
+    (* TODO: generalize to work on tree object *)
+    val resolve_dependency : int * int -> int * int -> int * int
 
     val apply_rules_with_cache : (Cat.t * Cat.t, (t * Cat.t) list) Hashtbl.t -> Cat.t * Cat.t -> (t * Cat.t) list
 
@@ -253,7 +254,7 @@ struct
     let apply_rules cs =
         List.flatten @@ List.map (apply cs) combinatory_rules
 
-    let resolve_dependency (head, dep) = (head, dep)
+    let resolve_dependency (head, dep) _ = (head, dep)
 
     let is_acceptable_unary c r = r <> `RP || Cat.is_type_raised c
 
@@ -361,7 +362,7 @@ struct
     let apply_rules cs =
         List.flatten @@ List.map (apply cs) combinatory_rules
 
-    let resolve_dependency (dep, head) = (head, dep)
+    let resolve_dependency (t1, t2) (len1, len2) = (t2 + len2 - 1, t1 + len1 - 1)
 
     let is_acceptable_unary _ _ = true
 

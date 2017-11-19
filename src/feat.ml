@@ -83,7 +83,7 @@ struct
 end
 
 
-type f_value = [ `X1 | `X2 | `GA | `NC | `NI | `O | `TO
+type f_value = [ `X1 | `X2 | `X3 | `GA | `NC | `NI | `O | `TO
                | `ADN | `ADV | `NM | `R | `S | `IMP
                | `ATTR | `BASE | `CONT | `HYP | `STEM | `DA | `NEG
                | `T | `F]
@@ -99,48 +99,56 @@ struct
     type t = f_value
 
     let equal = function
-        | (`X1 | `X2), _
-        | _, (`X1 | `X2) -> true
+        | (`X1 | `X2 | `X3), _
+        | _, (`X1 | `X2 | `X3) -> true
         | (f, g) -> f = g
 
 
     let show = function
-        | `X1   -> "X1"     | `X2   -> "X2"
-        | `GA   -> "ga"     | `NC   -> "nc"
-        | `NI   -> "ni"     | `O    -> "o"
-        | `TO   -> "to"     | `ADN  -> "adn"
-        | `ADV  -> "adv"    | `NM   -> "nm"
-        | `R    -> "r"      | `S    -> "s"
-        | `IMP  -> "imp"    | `ATTR -> "attr"
-        | `BASE -> "base"   | `CONT -> "cont"
-        | `HYP  -> "hyp"    | `STEM -> "stem"
-        | `DA   -> "da"     | `NEG  -> "neg"
-        | `T    -> "t"      | `F    -> "f"
+        | `X1   -> "X1"   | `X2   -> "X2"
+        | `X3   -> "X3"   | `GA   -> "ga"
+        | `NC   -> "nc"   | `NI   -> "ni"
+        | `O    -> "o"    | `TO   -> "to"
+        | `ADN  -> "adn"  | `ADV  -> "adv"
+        | `NM   -> "nm"   | `R    -> "r"
+        | `S    -> "s"    | `IMP  -> "imp"
+        | `ATTR -> "attr" | `BASE -> "base"
+        | `CONT -> "cont" | `HYP  -> "hyp"
+        | `STEM -> "stem" | `DA   -> "da"
+        | `NEG  -> "neg"  | `T    -> "t"
+        | `F    -> "f"
 
 
     let parse = function
-        | "X1"   -> `X1     | "X2"   -> `X2
-        | "ga"   -> `GA     | "nc"   -> `NC
-        | "ni"   -> `NI     | "o"    -> `O
-        | "to"   -> `TO     | "adn"  -> `ADN
-        | "adv"  -> `ADV    | "nm"   -> `NM
-        | "r"    -> `R      | "s"    -> `S
-        | "imp"  -> `IMP    | "attr" -> `ATTR
-        | "base" -> `BASE   | "cont" -> `CONT
-        | "hyp"  -> `HYP    | "stem" -> `STEM
-        | "da"   -> `DA     | "neg"  -> `NEG
-        | "t"    -> `T      | "f"    -> `F
+        | "X1"   -> `X1   | "X2"   -> `X2
+        | "X3"   -> `X3   | "ga"   -> `GA
+        | "nc"   -> `NC   | "ni"   -> `NI
+        | "o"    -> `O    | "to"   -> `TO
+        | "adn"  -> `ADN  | "adv"  -> `ADV
+        | "nm"   -> `NM   | "r"    -> `R
+        | "s"    -> `S    | "imp"  -> `IMP
+        | "attr" -> `ATTR | "base" -> `BASE
+        | "cont" -> `CONT | "hyp"  -> `HYP
+        | "stem" -> `STEM | "da"   -> `DA
+        | "neg"  -> `NEG  | "t"    -> `T
+        | "f"    -> `F
         | rest -> invalid_arg (!%"parse: %s" rest)
 
 
     let unify = function
-        | (`X1 | `X2), (`X1 | `X2) -> None
-        | (`X1 | `X2), f | f, (`X1 | `X2) -> Some f
-        | _ -> None
+        | `X1, `X1 -> `X1
+        | `X2, `X2 -> `X2
+        | `X3, `X3 -> `X3
+        | (`X1 | `X2 | `X3), f
+        | f, (`X1 | `X2 | `X3) -> f
+        | f, g when equal (f, g) -> f
+        | f, g -> failwith
+            (!%"trying to unify features not allowed: (%s, %s)"
+            (show f) (show g))
 
 
     let is_var = function
-        | (`X1 | `X2) -> true
+        | (`X1 | `X2 | `X3) -> true
         | _ -> false
 
 end
@@ -183,11 +191,10 @@ struct
 
 
     let unify = function
-        | `Sf (`X1, `X2, f3), (`Sf (_, _, g3) as f)
-        | (`Sf (_, _, g3) as f), `Sf (`X1, `X2, f3)
-        | `NPf (`X1, `X2, f3), (`NPf (_, _, g3) as f)
-        | (`NPf (_, _, g3) as f), `NPf (`X1, `X2, f3)
-                -> if V.equal (f3, g3) then Some f else None
+        | `Sf (f1, f2, f3), `Sf (g1, g2, g3)
+                -> Some (`Sf (V.unify (f1, g1), V.unify (f2, g2), V.unify (f3, g3)))
+        | `NPf (f1, f2, f3), `NPf (g1, g2, g3)
+                -> Some (`NPf (V.unify (f1, g1), V.unify (f2, g2), V.unify (f3, g3)))
         | _ -> None
 
 

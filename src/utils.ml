@@ -31,6 +31,18 @@ let (--) a b =
 
 let enumerate l = List.mapi (fun i elt -> (i, elt)) l
 
+let escape_html_simple s =
+    let open Buffer in
+    let buf = create 10 in
+    let f = function
+        | '&' -> add_string buf "&amp;"
+        | '<' -> add_string buf "&lt;"
+        | '>' -> add_string buf "&gt;"
+        | ' ' -> add_string buf "&nbsp;"
+        | c -> add_char buf c
+    in String.iter f s;
+    contents buf
+
 module Matrix =
 struct
     type shape = int * int

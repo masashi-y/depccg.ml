@@ -22,7 +22,7 @@ usage() {
     echo "Argument:"
     echo "  FILE              : input file (either raw text or seed file (*.seeds)"
     echo "Options:"
-    echo "  -f, --format      : output format {deriv,auto,xml} [$FORMAT]"
+    echo "  -f, --format      : output format {deriv,auto,xml,html} [$FORMAT]"
     echo "  -m, --model       : path to model directory [$MODEL]"
     echo "  -s, --seed        : seed file the supertagger outputs [$SEEDFILE]"
     echo "  -b, --batchsize   : batch size in tagger [$BATCHSIZE]"
