@@ -1,7 +1,7 @@
 
 open Utils
 open Grammar
-open Tree
+open Printer
 module L = List
 module LL = ListLabels
 module M = Matrix
@@ -38,11 +38,8 @@ let compute_outside_scores scores length =
 module MakeAStarParser (Grammar : GRAMMAR) =
 struct
 
-    module Grammar = Grammar
-    module Cat = Grammar.Cat
-    module Tree = Tree (Grammar)
-    module Cell =
-    struct
+    open Grammar
+    module Cell = struct
         type  t = {id        : int;
                    in_score  : float;
                    out_score : float;
@@ -60,9 +57,8 @@ struct
     module Q = Agenda (Cell)
 
     module Log = struct
-
+        module Printer = ParsePrinter (Grammar)
         let do_log = false
-
         let blue = format_of_string "\027[34m%s\027[93m"
         let red  = format_of_string "\027[31m%s\027[93m"
 
@@ -70,7 +66,7 @@ struct
 
         let pop Cell.{score; in_score; out_score; id; tree} =
             if do_log then (Printf.eprintf (blue ^^ "\nID: %i\n%s\ns: %e\nh: %e\ns+h: %e\n")
-                "POPPED" id (Tree.show_derivation tree) in_score out_score score; bar ())
+                "POPPED" id (Printer.show_derivation tree) in_score out_score score; bar ())
 
         let onebest = function
             | None -> ()
@@ -78,13 +74,12 @@ struct
                 Printf.eprintf "%s\t-->\t%s\n" str (Cat.show cat)
 
         let log msg Cell.{tree} = if do_log then
-            (Printf.eprintf (red ^^ "\n%s\n") msg (Tree.show_derivation tree); bar())
+            (Printf.eprintf (red ^^ "\n%s\n") msg (Printer.show_derivation tree); bar())
 
-        let unary  = log "UNARY"
-        let cand   = log "CAND"
-        let binary = log "BINARY"
-
+        let (unary, cand, binary) = (log "UNARY", log "CAND", log "BINARY")
     end
+
+    let fail = Tree.terminal Cat.np "FAILED"
 
     let rule_cache = ref @@ H.create 1000
 
@@ -106,7 +101,7 @@ struct
             in (id, elt)
         in
         let is_seen cs = match seen_rules with
-            | Some rules -> Grammar.is_seen rules cs
+            | Some rules -> is_seen rules cs
             | None -> true
         in
         let cat_dict w i = match cat_dict with
@@ -158,8 +153,8 @@ struct
             | Cell.{in_score=s; out_score; start; length; tree={Tree.cat=c; op} as t} ->
                  LL.fold_right (H.find_all unary_rules c)
                     ~init:q ~f:(fun cat q ->
-                        if Grammar.is_acceptable_unary cat op then
-                        (let tree = Tree.make ~cat ~op:Grammar.unary ~children:[t] in
+                        if is_acceptable_unary cat op then
+                        (let tree = Tree.make ~cat ~op:Rules.unary ~children:[t] in
                          let (id, elt) = new_item tree
                             ~in_score:(s -. unary_penalty)
                             ~out_score ~start ~length
@@ -173,10 +168,10 @@ struct
               Cell.{in_score=s2; start=st2; length=l2; tree=Tree.{cat=c2} as t2}
               when is_seen (c1, c2) ->
                       Log.cand (fst ps);
-                      LL.fold_right (Grammar.apply_rules_with_cache !rule_cache (c1, c2))
+                      LL.fold_right (apply_rules_with_cache !rule_cache (c1, c2))
                       ~init:q ~f:(fun (op, cat) q ->
                           let length = l1 + l2 in
-                          let (head, dep) = Grammar.resolve_dependency (st1, st2) (l1, l2) in
+                          let (head, dep) = resolve_dependency (st1, st2) (l1, l2) in
                           let in_score = s1 +. s2 +. M.get dep_scores (dep, head+1)
                           and out_score = M.get cat_out_scores (st1, st1 + length)
                                        +. M.get dep_out_scores (st1, st1 + length)
@@ -190,12 +185,12 @@ struct
         in
 
         (* main chart *)
-        let chart = Chart.make n_words
-        and goal = Chart.make 1
+        let chart = Chart.make n_words nbest
+        and goal = Chart.make 1 nbest
         in
         let check_root_cell p q = match p with
         | Cell.{in_score=score; start; length; tree=Tree.{cat} as tree}
-            when length = n_words && L.mem cat Grammar.possible_root_cats ->
+            when length = n_words && L.mem cat possible_root_cats ->
                 let dep_score = M.get dep_scores (start, 0) in
                 let in_score = score +. dep_score in
                 let (id, elt) = new_item tree ~in_score ~out_score:0.0 ~start
@@ -205,9 +200,9 @@ struct
         in
         (* main A* loop *)
         let rec astar q =
-        if Chart.n_complete_parses goal >= nbest then
-            `OK (L.sort Cell.compare @@ Chart.complete_parses goal)
+        if Chart.n_complete_parses goal >= nbest then `OK
         else match Q.pop q with
+        | None when Chart.n_complete_parses goal > 0 -> `OK
         | None -> `Fail
         | Some ((_, (Cell.{start=s; length=l; tree=Tree.{cat}} as p)), q')
                -> Log.pop p;
@@ -223,8 +218,9 @@ struct
                     |> astar)
         in
         match astar queue with
-        | `OK parses -> L.map (fun Cell.{score; tree} -> (score, tree)) parses
-        | `Fail      -> [(nan, Tree.fail)]
+        | `OK   -> let parses = L.sort Cell.compare @@ Chart.complete_parses goal
+                   in L.map (fun Cell.{score; tree} -> (score, tree)) parses
+        | `Fail -> [(nan, fail)]
 
 end
 

@@ -1,17 +1,19 @@
 
 open Ccg_seed_types
 open Utils
-(*
+
 module Category = Cat.EnglishCategories
-module EnAstarParser = Astar.EnAstarParser
-module Tree = EnAstarParser.Tree
+module Grammar = Grammar.EnglishGrammar
+module EnAstarParser = Astar.MakeAStarParser (Grammar)
+module Printer = Printer.ParsePrinter (Grammar)
 module L = Reader.EnglishLoader
-*)
+
+(*
 module Category = Cat.JapaneseCategories
 module EnAstarParser = Astar.JaAstarParser
 module Tree = EnAstarParser.Tree
 module L = Reader.JapaneseLoader
-
+*)
 
 let (</>) = Filename.concat
 
@@ -29,15 +31,15 @@ let spec =
     ]
 
 let usage = !%"\n%sUsage: thorn [-nbest] [-beta] [-format] [-lang] model seeds"
-            Tree.(show_derivation sample_tree)
+            Printer.(show_derivation sample_tree)
 
 let valid_format s = List.mem s ["auto"; "deriv"; "html"]
 
 let output_results res =
     match !out with
-    | "auto"  -> List.iteri (fun i [(_, t)] -> p "ID=%i\n%s\n" i (Tree.show_tree t)) res
-    | "deriv" -> List.iteri (fun i [(_, t)] -> p "ID=%i\n%s\n" i (Tree.show_derivation t)) res
-    | "html"  -> pr (Tree.show_html_trees res)
+    | "auto"  -> List.iteri (fun i [(_, t)] -> p "ID=%i\n%s\n" i (Printer.show_tree t)) res
+    | "deriv" -> List.iteri (fun i [(_, t)] -> p "ID=%i\n%s\n" i (Printer.show_derivation t)) res
+    | "html"  -> pr (Printer.show_html_trees res)
     | _ -> invalid_arg "output_results"
 
 let status =

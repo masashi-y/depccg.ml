@@ -5,30 +5,64 @@ open Feat
 open Utils
 (* open Cell *)
 
+module type RULES =
+sig
+    type t
+    val intro : t
+    val unary : t
+    val to_list : t list
+    val show : t -> string
+end
+
+module type TREE =
+sig
+    type cat
+    type op
+    type t = {cat      : cat;
+              op       : op;
+              children : t list;
+              str      : string}
+    
+    val make : cat:cat -> op:op -> children:(t list) -> t
+    val terminal : cat -> string -> t
+end
+
+module Tree (Cat : CATEGORIES) (Rules : RULES) = 
+struct
+    type cat = Cat.t
+    type op = Rules.t
+    type t = {cat      : cat;
+              op       : op;
+              children : t list;
+              str      : string}
+
+    let make ~cat ~op ~children =
+        {cat=cat; op=op; children=children; str=""}
+
+    let terminal cat s =
+        {cat=cat; op=Rules.intro; children=[]; str=s}
+end
+
+
 module type GRAMMAR =
 sig
     type feature
 
+    module Rules : RULES
     module Feature : FEATURE with type t = feature
     module Cat : CATEGORIES with type feature = Feature.t
+    module Tree : TREE with type cat = Cat.t and type op = Rules.t
 
-    type t
-    type rule = Cat.t * Cat.t -> Cat.t list
-
-    val intro : t
-    val unary : t
-
-    val combinatory_rules : t list
-    val show : t -> string
-    val apply : Cat.t * Cat.t -> t -> (t * Cat.t) list
-    val apply_rules : Cat.t * Cat.t -> (t * Cat.t) list
+    val apply : Cat.t * Cat.t -> Rules.t -> (Rules.t * Cat.t) list
+    val apply_rules : Cat.t * Cat.t -> (Rules.t * Cat.t) list
 
     val possible_root_cats : Cat.t list
-    val is_acceptable_unary : Cat.t -> t -> bool
+    val is_acceptable_unary : Cat.t -> Rules.t -> bool
     (* TODO: generalize to work on tree object *)
     val resolve_dependency : int * int -> int * int -> int * int
 
-    val apply_rules_with_cache : (Cat.t * Cat.t, (t * Cat.t) list) Hashtbl.t -> Cat.t * Cat.t -> (t * Cat.t) list
+    val apply_rules_with_cache
+        : (Cat.t * Cat.t, (Rules.t * Cat.t) list) Hashtbl.t -> Cat.t * Cat.t -> (Rules.t * Cat.t) list
 
     (* check a pair of cats is seen in a dictionary *)
     val is_seen : (Cat.t * Cat.t, bool) Hashtbl.t -> Cat.t * Cat.t -> bool
@@ -153,18 +187,46 @@ struct
     module Feature = EnglishFeature
     module Cat = Categories (Feature)
     module Base = BaseGrammar (Cat)
-    open Cat
+    module Rules = struct
+        type t = [ `FwdCmp
+                 | `BwdCmp
+                 | `GenFwdCmp
+                 | `GenBwdCmp
+                 | `Conj           (* Conjunction *)
+                 | `RP             (* RemovePunctuation *)
+                 | `CommaVPtoADV   (* CommaAndVerbPhraseToAdverb *)
+                 | `ParentDirect   (* ParentheticalDirectSpeech *)
+                 | Base.t]
 
-    type t = [ `FwdCmp
-             | `BwdCmp
-             | `GenFwdCmp
-             | `GenBwdCmp
-             | `Conj           (* Conjunction *)
-             | `RP             (* RemovePunctuation *)
-             | `CommaVPtoADV   (* CommaAndVerbPhraseToAdverb *)
-             | `ParentDirect   (* ParentheticalDirectSpeech *)
-             | Base.t]
-    type rule = Cat.t * Cat.t -> Cat.t list
+        let to_list = [`FwdApp
+                      ; `BwdApp
+                      ; `FwdCmp
+                      ; `BwdCmp
+                      ; `GenFwdCmp
+                      ; `GenBwdCmp
+                      ; `Conj
+                      ; `RP
+                      ; `CommaVPtoADV
+                      ; `ParentDirect]
+
+        let intro = `Intro
+        let unary = `Unary
+
+        let show = function
+            | `FwdCmp       -> ">B"
+            | `BwdCmp       -> "<B"
+            | `GenFwdCmp    -> ">B1"
+            | `GenBwdCmp    -> "<B1"
+            | `Conj         -> "<P>"
+            | `RP           -> "<rp>"
+            | `CommaVPtoADV -> "<*>"
+            | `ParentDirect -> "<*>"
+            | #Base.t as t  -> Base.show t
+    end
+
+    module Tree = Tree (Cat) (Rules)
+
+    open Cat
 
     let possible_root_cats = [ `S `DCL
                              ; `S `WQ
@@ -172,22 +234,6 @@ struct
                              ; `S `QEM
                              ; `NP `None]
 
-    let combinatory_rules = [`FwdApp; `BwdApp; `FwdCmp; `BwdCmp; `GenFwdCmp;
-        `GenBwdCmp; `Conj; `RP; `CommaVPtoADV; `ParentDirect]
-
-    let intro = `Intro
-    let unary = `Unary
-
-    let show = function
-        | `FwdCmp       -> ">B"
-        | `BwdCmp       -> "<B"
-        | `GenFwdCmp    -> ">B1"
-        | `GenBwdCmp    -> "<B1"
-        | `Conj         -> "<P>"
-        | `RP           -> "<rp>"
-        | `CommaVPtoADV -> "<*>"
-        | `ParentDirect -> "<*>"
-        | #Base.t as t  -> Base.show t
 
     (* S[dcl] S[em]\S[em] --> S[em] *)
     let backward_application = function
@@ -196,8 +242,8 @@ struct
         | _ -> []
 
     let conjunction cs =
-        let conj1 =
-            let puncts = [","; ";"; "conj"] in function
+        let puncts = [","; ";"; "conj"] in 
+        let conj1 = function
             | _, `Bwd (`NP _, `NP _)
             | _, `N _  -> []
             | `Punct x, y when List.mem x puncts
@@ -207,16 +253,18 @@ struct
         in
         let conj2 = function
             | `Punct "conj", `Bwd (`NP `None, `NP `None) -> [np]
+            (*
             | _, `Bwd (`NP _, `NP _) -> []
             | _, `N _ -> []
             | `Punct ",", y when not (is_punct y)
                               && not (is_type_raised y) -> [y]
+            *)
             | _ -> [] 
         in
         let conj3 = function
             | `NP `None, `Bwd (`NP `None, `NP `None) -> [np]
             | _ -> [] 
-        in List.flatten [conj1 cs; conj2 cs; conj3 cs]
+        in List.flatten [conj1 cs; conj2 cs] (* ; conj3 cs] *)
 
     (* , S[ng|pss]\NP --> (S\NP)\(S\NP) *)
     let comma_vp_to_adv = function
@@ -252,7 +300,7 @@ struct
         | (`Intro | `Unary) -> invalid_arg "apply"
 
     let apply_rules cs =
-        List.flatten @@ List.map (apply cs) combinatory_rules
+        List.flatten @@ List.map (apply cs) Rules.to_list
 
     let resolve_dependency (head, dep) _ = (head, dep)
 
@@ -278,32 +326,49 @@ struct
     module Feature = JapaneseFeature
     module Cat = Categories (Feature)
     module Base = BaseGrammar (Cat)
+    module Rules = struct
+
+        type t = [ `FwdCmp
+                 | `BwdCmp
+                 | `GenBwdCmp2
+                 | `GenBwdCmp3
+                 | `GenBwdCmp4
+                 | `CrsFwdCmp1
+                 | `CrsFwdCmp2
+                 | `CrsFwdCmp3
+                 | `Conj
+                 | Base.t]
+
+        let to_list = [`FwdApp
+                      ; `BwdApp
+                      ; `FwdCmp
+                      ; `BwdCmp
+                      ; `GenBwdCmp2
+                      ; `GenBwdCmp3
+                      ; `GenBwdCmp4
+                      ; `CrsFwdCmp1
+                      ; `CrsFwdCmp2
+                      ; `CrsFwdCmp3
+                      ; `Conj]
+
+        let intro = `Intro
+        let unary = `Unary
+
+        let show = function
+            | `FwdCmp      -> ">B"
+            | `BwdCmp      -> "<B1"
+            | `GenBwdCmp2  -> "<B2"
+            | `GenBwdCmp3  -> "<B3"
+            | `GenBwdCmp4  -> "<B4"
+            | `CrsFwdCmp1  -> ">Bx1"
+            | `CrsFwdCmp2  -> ">Bx2"
+            | `CrsFwdCmp3  -> ">Bx3"
+            | `Conj        -> "<P>"
+            | #Base.t as t  -> Base.show t
+    end
+    module Tree = Tree (Cat) (Rules)
+
     open Cat
-
-    type t = [ `FwdCmp
-             | `BwdCmp
-             | `GenBwdCmp2
-             | `GenBwdCmp3
-             | `GenBwdCmp4
-             | `CrsFwdCmp1
-             | `CrsFwdCmp2
-             | `CrsFwdCmp3
-             | `Conj
-             | Base.t]
-
-    let combinatory_rules = [`FwdApp
-                            ; `BwdApp
-                            ; `FwdCmp
-                            ; `BwdCmp
-                            ; `GenBwdCmp2
-                            ; `GenBwdCmp3
-                            ; `GenBwdCmp4
-                            ; `CrsFwdCmp1
-                            ; `CrsFwdCmp2
-                            ; `CrsFwdCmp3
-                            ; `Conj]
-
-    type rule = Cat.t * Cat.t -> Cat.t list
 
     let possible_root_cats =
         [ `NP (`NPf (`NC, `NM, `F))
@@ -323,22 +388,7 @@ struct
         ; `S  (`Sf (`NM, `STEM, `F))
         ; `S  (`Sf (`NM, `STEM, `T)) ]
 
-    let intro = `Intro
-    let unary = `Unary
-
-    let show = function
-        | `FwdCmp      -> ">B"
-        | `BwdCmp      -> "<B1"
-        | `GenBwdCmp2  -> "<B2"
-        | `GenBwdCmp3  -> "<B3"
-        | `GenBwdCmp4  -> "<B4"
-        | `CrsFwdCmp1  -> ">Bx1"
-        | `CrsFwdCmp2  -> ">Bx2"
-        | `CrsFwdCmp3  -> ">Bx3"
-        | `Conj        -> "<P>"
-        | #Base.t as t  -> Base.show t
-
-    let conjoin : rule = function
+    let conjoin = function
         | x, y when List.mem x possible_root_cats
                 && x = y && Cat.is_functor x -> [y]
         | _ -> []
@@ -360,7 +410,7 @@ struct
         | (`Intro | `Unary) -> invalid_arg "apply"
 
     let apply_rules cs =
-        List.flatten @@ List.map (apply cs) combinatory_rules
+        List.flatten @@ List.map (apply cs) Rules.to_list
 
     let resolve_dependency (t1, t2) (len1, len2) = (t2 + len2 - 1, t1 + len1 - 1)
 

@@ -7,7 +7,7 @@ FILES[] =
    feat
    cat
    grammar
-   tree
+   printer
    chart
    astar
    reader
