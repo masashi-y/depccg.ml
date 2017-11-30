@@ -32,8 +32,8 @@ $ ./run.sh -tokenize -format html input.txt > res.html
 |depccg (paper)  | 88.8% | 94.0% |
 |Camelthorn| 88.9% | 94.1%|
 
-Japanese parsing is also available.
-By default run.sh expects English as input and uses models/tri\_headfirst.  
+Japanese parsing is also available.  
+By default `run.sh` expects English as input and uses models/tri\_headfirst.  
 So please specify explicitly `-lang ja` and `-model models/ja_headfinal`.  
 ** The parser accepts pre-tokenized Japanese texts only.
 
