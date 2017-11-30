@@ -2,18 +2,19 @@
 open Ccg_seed_types
 open Utils
 
-module Category = Cat.EnglishCategories
-module Grammar = Grammar.EnglishGrammar
-module EnAstarParser = Astar.MakeAStarParser (Grammar)
-module Printer = Printer.ParsePrinter (Grammar)
-module L = Reader.EnglishLoader
+module EnCat = Cat.EnglishCategories
+module EnGrammar = Grammar.EnglishGrammar
+module EnAstarParser = Astar.MakeAStarParser (EnGrammar)
+module EnPrinter = Printer.ParsePrinter (EnGrammar)
+module EnLoader = Reader.EnglishLoader
 
-(*
-module Category = Cat.JapaneseCategories
-module EnAstarParser = Astar.JaAstarParser
-module Tree = EnAstarParser.Tree
-module L = Reader.JapaneseLoader
-*)
+
+module JaCat = Cat.JapaneseCategories
+module JaGrammar = Grammar.JapaneseGrammar
+module JaAstarParser = Astar.MakeAStarParser (JaGrammar)
+module JaPrinter = Printer.ParsePrinter (JaGrammar)
+module JaLoader = Reader.JapaneseLoader
+
 
 let (</>) = Filename.concat
 
@@ -31,16 +32,9 @@ let spec =
     ]
 
 let usage = !%"\n%sUsage: thorn [-nbest] [-beta] [-format] [-lang] model seeds"
-            Printer.(show_derivation sample_tree)
+            EnPrinter.(show_derivation sample_tree)
 
 let valid_format s = List.mem s ["auto"; "deriv"; "html"]
-
-let output_results res =
-    match !out with
-    | "auto"  -> List.iteri (fun i [(_, t)] -> p "ID=%i\n%s\n" i (Printer.show_tree t)) res
-    | "deriv" -> List.iteri (fun i [(_, t)] -> p "ID=%i\n%s\n" i (Printer.show_derivation t)) res
-    | "html"  -> pr (Printer.show_html_trees res)
-    | _ -> invalid_arg "output_results"
 
 let status =
 "[parser] Camelthorn CCG Parser\n"              ^^
@@ -70,20 +64,16 @@ let try_load name f =
         prerr_endline ("[parser] " ^ name ^ " not found. Using empty one");
         (None, 0)
 
-let () =
-    let () = Arg.parse spec (fun s -> paths := s :: !paths) usage in
-    let (model, seeds) = match !paths with
-        |[m; s] -> (m, s)
-        | _ -> Arg.usage spec usage; exit 1;
-    in
-    let ss = L.read_ccgseeds seeds in
-    let cat_list = Utils.enumerate (List.map Category.parse ss.categories)
+(* main function for English parsing *)
+let main_en model seeds =
+    let ss = EnLoader.read_ccgseeds seeds in
+    let cat_list = Utils.enumerate (List.map EnCat.parse ss.categories)
     and n_cats = (List.length ss.categories)
-    and unary_rules = L.read_unary_rules (model </> "unary_rules.txt") in
+    and unary_rules = EnLoader.read_unary_rules (model </> "unary_rules.txt") in
     let seen_rules, seen_rules_size = 
-        try_load "seen rules" (fun () -> L.read_binary_rules (model </> "seen_rules.txt")) in
+        try_load "seen rules" (fun () -> EnLoader.read_binary_rules (model </> "seen_rules.txt")) in
     let cat_dict, cat_dict_size =
-        try_load "cat dict" (fun () -> L.read_cat_dict ss.categories (model </> "cat_dict.txt")) in
+        try_load "cat dict" (fun () -> EnLoader.read_cat_dict ss.categories (model </> "cat_dict.txt")) in
     Printf.eprintf status (List.length ss.seeds)
             n_cats (Hashtbl.length unary_rules)
             seen_rules_size cat_dict_size !nbest !beta !out;
@@ -94,4 +84,37 @@ let () =
             ~cat_list ~unary_rules ~seen_rules ~cat_dict
             ~nbest:(!nbest) ~beta:(!beta) ~unary_penalty:0.1 ()) in
     Printf.eprintf "\nExecution time: %fs\n" (Sys.time() -. t);
-    output_results res
+    EnPrinter.output_results !out res
+
+
+(* main function for Japanese parsing *)
+let main_ja model seeds =
+    let ss = JaLoader.read_ccgseeds seeds in
+    let cat_list = Utils.enumerate (List.map JaCat.parse ss.categories)
+    and n_cats = (List.length ss.categories)
+    and unary_rules = JaLoader.read_unary_rules (model </> "unary_rules.txt") in
+    let seen_rules, seen_rules_size = 
+        try_load "seen rules" (fun () -> JaLoader.read_binary_rules (model </> "seen_rules.txt")) in
+    Printf.eprintf status (List.length ss.seeds)
+            n_cats (Hashtbl.length unary_rules)
+            seen_rules_size 0 !nbest !beta !out;
+    flush stderr;
+    let t = Sys.time () in
+    let res = progress_map ss.seeds
+            ~f:(fun s -> JaAstarParser.parse (Reader.read_proto_matrix n_cats s)
+            ~cat_list ~unary_rules ~seen_rules ~cat_dict:None
+            ~nbest:(!nbest) ~beta:(!beta) ~unary_penalty:0.1 ()) in
+    Printf.eprintf "\nExecution time: %fs\n" (Sys.time() -. t);
+    JaPrinter.output_results !out res
+
+
+let () =
+    let () = Arg.parse spec (fun s -> paths := s :: !paths) usage in
+    let (model, seeds) = match !paths with
+        |[m; s] -> (m, s)
+        | _ -> Arg.usage spec usage; exit 1;
+    in
+    match !lang with
+    | "en" -> main_en model seeds
+    | "ja" -> main_ja model seeds
+    | _ -> failwith (!%"Not supported language option: %s\n" !lang)

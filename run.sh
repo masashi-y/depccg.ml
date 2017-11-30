@@ -10,14 +10,15 @@ SEEDFILE=ccg.seeds
 BATCHSIZE=16
 BETA=1.0e-15
 NBEST=1
-
+LNG="en"
+TOKENIZE="false"
 log () {
     echo "[shell]" $1 >&2
 }
 
 usage() {
     echo "Usage: $PROGNAME [OPTIONS] FILE"
-    echo "  This script is ~."
+    echo "  Camelthorn: A* CCG parser"
     echo
     echo "Argument:"
     echo "  FILE              : input file (either raw text or seed file (*.seeds)"
@@ -27,7 +28,8 @@ usage() {
     echo "  -s, --seed        : seed file the supertagger outputs [$SEEDFILE]"
     echo "  -b, --batchsize   : batch size in tagger [$BATCHSIZE]"
     echo "  -n, --nbest       : number of parses for each sentence [$NBEST]"
-    echo "  -t, --tokenize    : apply tokenization to raw text [false]"
+    echo "  -t, --tokenize    : apply tokenization (only English) [$TOKENIZE]"
+    echo "  -l, --lang        : parse english or japanese sentences {en, ja} [$LNG]"
     echo "  -v, --beta        : beta value used in pruning [$BETA]"
     echo "  -h, --help        : show this text"
     echo
@@ -65,8 +67,12 @@ do
             BETA=$2
             shift 2
             ;;
+        '-l' | '--lang' )
+            LNG=$2
+            shift 2
+            ;;
         '-t' | '--tokenize' )
-            TOKENIZE=1
+            TOKENIZE="true"
             shift 1
             ;;
     esac
@@ -87,7 +93,8 @@ case $INPUT in
     * )
         log "supertagging"
         log "$TAGGER --out $SEEDFILE --batchsize $BATCHSIZE $MODEL"
-        if [ "$TOKENIZE" ]; then
+        if [ "$TOKENIZE" = "true" ] && [ "$LNG" = "en" ]; then
+            log "tokenizing the input texts"
             cat $INPUT | \
               sed -f tokenizer.sed | \
               sed 's/ _ /_/g' | \
@@ -99,6 +106,6 @@ case $INPUT in
 esac
 
 
-log "$THORN -beta $BETA -nbest $NBEST -format $FORMAT $SEEDFILE $MODEL"
+log "$THORN -beta $BETA -nbest $NBEST -format $FORMAT -lang $LNG $SEEDFILE $MODEL"
 
-$THORN -beta $BETA -nbest $NBEST -format $FORMAT $SEEDFILE $MODEL
+$THORN -beta $BETA -nbest $NBEST -format $FORMAT -lang $LNG $SEEDFILE $MODEL

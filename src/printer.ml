@@ -141,5 +141,16 @@ struct
                          ]
                 ]
 
+    let output_results fmt res =
+        let f printfun i = function
+            | [] -> ()
+            | lst -> List.iter (fun (_, t) ->
+                     p "ID=%i\n%s\n" i (printfun t)) lst
+        in match fmt with
+        | "auto"  -> List.iteri (f show_tree) res
+        | "deriv" -> List.iteri (f show_derivation) res
+        | "html"  -> pr (show_html_trees res)
+        | _ -> invalid_arg (!%"Not accepted output format: %s\n" fmt)
+
 end
 

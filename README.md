@@ -18,19 +18,29 @@ $ opam install psq ocaml-protoc
 $ git clone git://github.com/masashi-y/Camelthorn.git
 $ cd Camelthorn
 $ omake
-$ ./download_en_model.sh
+$ ./download_en_model.sh # ./download_ja_model.sh for Japanese model
 ```
 
 ### Usage
 ```sh
 $ echo "this is a test example." > input.txt
-$ ./run.sh --format html input.txt > res.html
+$ ./run.sh -tokenize -format html input.txt > res.html
 ```
 
 | Parser | labeled F1 | unlabeled F1 |
 |:------:|:----------:|:------------:|
 |depccg (paper)  | 88.8% | 94.0% |
 |Camelthorn| 88.9% | 94.1%|
+
+Japanese parsing is also available.
+By default run.sh expects English as input and uses models/tri\_headfirst.  
+So please specify explicitly `-lang ja` and `-model models/ja_headfinal`.  
+** The parser accepts pre-tokenized Japanese texts only.
+
+```sh
+$ echo "これ は テスト の 文 です 。" > input.txt
+$ ./run.sh -format html -l ja -m models/ja_headfinal input.txt > res.html
+```
 
 ### Citation
 
