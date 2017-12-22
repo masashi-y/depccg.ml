@@ -26,6 +26,17 @@ struct
                let head_is_left = 0 in     (* do not care *)
                !%"(<T %s %i %i> %s )" (Cat.show cat) head_is_left n_child w
 
+    let is_terminal = function
+        | {children=[]} -> true
+        | _ -> false
+
+    let rec show_ptb depth = function
+        | {cat; str; children=[]}
+            -> !%"(%s %s)" (Cat.show cat) str
+        | {cat; children}
+            -> let w = String.concat " " (List.map (show_ptb (depth+1)) children) in
+               !%"(%s %s)" (Cat.show cat) w
+
     let show_derivation tree =
         let open String in
         let space n = make n ' ' in
@@ -149,6 +160,7 @@ struct
         in match fmt with
         | "auto"  -> List.iteri (f show_tree) res
         | "deriv" -> List.iteri (f show_derivation) res
+        | "ptb"   -> List.iteri (f (show_ptb 0)) res
         | "html"  -> pr (show_html_trees res)
         | _ -> invalid_arg (!%"Not accepted output format: %s\n" fmt)
 
