@@ -166,3 +166,143 @@ struct
 
 end
 
+module EnglishPrinter = struct
+    include ParsePrinter (EnglishGrammar)
+    open EnglishGrammar
+    open Tree
+    open Rules
+    open Cat
+
+    module Prolog : sig
+        val show : int -> Tree.t -> string
+    end = struct
+        let rec remove_noisy_rules ({op; cat; str; children} as self) = 
+            let children = List.map remove_noisy_rules children in
+            match children with [{cat=lcat}; {cat=rcat}] -> begin
+                match op with
+                | `CommaVPtoADV | `ParentDirect | `RP when is_punct lcat -> 
+                        let child = Tree.make ~cat:rcat ~op:`RP ~children in
+                        Tree.make ~cat ~op:`Unary ~children:[child]
+                | `Conj when lcat =:= (!:"conj") (* conj2 *)
+                          && rcat =:= (np |: np)
+                          &&  cat =:= np ->
+                            let cat' = rcat |: rcat in
+                            let child = Tree.make ~cat:cat' ~op:`Conj ~children in
+                            Tree.make ~cat ~op:`Unary ~children:[child]
+                | _ -> Tree.make ~cat ~op ~children
+            end
+            | [_] -> Tree.make ~cat ~op ~children
+            | []  -> self
+            | _ -> invalid_arg (!%"Unexpected number of children: %d\n" (List.length children))
+
+        let show_cat =
+            let show_atom c f = match Feature.show f with
+                | "" -> c
+                | s  -> let s' = String.sub s 1 (String.length s - 2)
+                        in !%"%s:%s" c s'
+            in
+            let rec f = function
+            | `S f -> show_atom "s" f
+            | `N f -> show_atom "n" f
+            | `NP f -> show_atom "np" f
+            | `PP f -> show_atom "pp" f
+            | `Fwd (x, y) -> !%"(%s/%s)" (f x) (f y)
+            | `Bwd (x, y) -> !%"(%s\\%s)" (f x) (f y)
+            | `Punct s -> begin match s with
+                | "." -> "period"
+                | "," -> "comma"
+                | ":" -> "colon"
+                | ";" -> "semicolon"
+                | s -> String.lowercase_ascii s
+            end
+            in f
+
+        let show_rule = function
+            | `FwdApp        -> "fa"
+            | `BwdApp        -> "ba"
+            | `FwdCmp        -> "fc"
+            | `BwdCmp        -> "bxc"
+            | `GenFwdCmp     -> "gfc"
+            | `GenBwdCmp     -> "gbx"
+            | `Conj          -> "conj"
+            | `RP            -> "rp"
+            | _  -> invalid_arg "Not supported combinatory rule"
+
+        let get_arg = function
+            | `Fwd (_, y)
+            | `Bwd (_, y) -> y
+            | _ -> invalid_arg "failed in get_arg"
+
+    let escape_str s =
+        let open Buffer in
+        let buf = create 10 in
+        let f = function
+            | '\'' -> add_string buf "\\'"
+            | c -> add_char buf c
+    in String.iter f s;
+    contents buf
+
+        let show i tree =
+            let buf = Buffer.create 100 in
+            let indent depth = for i = 0 to depth do Buffer.add_char buf ' ' done in
+            let close depth = Buffer.add_char buf ')' in
+            let rec f depth = function
+                | {cat; str; children=[]} ->
+                        indent depth;
+                    Printf.bprintf buf "t(%s, '%s')" (show_cat cat) (escape_str str)
+                | {cat; children=[c]} ->
+                        indent depth;
+                        Printf.bprintf buf "lx(%s, %s,\n" (show_cat cat) (show_cat c.cat);
+                        f (depth + 1) c;
+                        close depth
+                | {cat; op=`Conj; children=[c1; c2]} ->
+                        indent depth;
+                        Printf.bprintf buf "conj(%s, %s,\n" (show_cat cat) (show_cat @@ get_arg cat);
+                        f (depth + 1) c1;
+                        Buffer.add_string buf ",\n";
+                        f (depth + 1) c2;
+                        close depth
+                | {cat; op; children=[c1; c2]} ->
+                        indent depth;
+                        Printf.bprintf buf "%s(%s,\n" (show_rule op) (show_cat cat);
+                        f (depth + 1) c1;
+                        Buffer.add_string buf ",\n";
+                        f (depth + 1) c2;
+                        close depth
+                | _ -> invalid_arg "failed in Prolog.show"
+            in
+            Buffer.add_string buf (!%"ccg(%d,\n" i);
+            f 0 @@ remove_noisy_rules tree;
+            Buffer.add_string buf ").\n";
+            Buffer.contents buf
+    end
+
+    let show_prolog trees = 
+        let warn = let did = ref false in fun () ->
+            if not !did then
+                prerr_endline "WARNING: only the one best parses are output in prolog format";
+                did := true
+        in
+        pr (":- op(601, xfx, (/)).\n"        ^
+            ":- op(601, xfx, (\\)).\n"       ^
+            ":- multifile ccg/2, id/2.\n"    ^
+            ":- discontiguous ccg/2, id/2.\n");
+        let f i = function
+            (_, t) :: rest -> pr (Prolog.show (i + 1) t);
+                              if (List.length rest > 0) then warn ()
+            | _ -> invalid_arg ""
+        in List.iteri f trees
+
+    let output_results fmt res =
+        let f printfun i = function
+            | [] -> ()
+            | lst -> List.iter (fun (_, t) ->
+                     p "ID=%i\n%s\n" i (printfun t)) lst
+        in match fmt with
+        | "auto"  -> List.iteri (f show_tree) res
+        | "deriv" -> List.iteri (f show_derivation) res
+        | "ptb"   -> List.iteri (f (show_ptb 0)) res
+        | "html"  -> pr (show_html_trees res)
+        | "prolog" -> show_prolog res
+        | _ -> invalid_arg (!%"Not accepted output format: %s\n" fmt)
+end

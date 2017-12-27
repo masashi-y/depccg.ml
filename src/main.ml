@@ -5,7 +5,7 @@ open Utils
 module EnCat = Cat.EnglishCategories
 module EnGrammar = Grammar.EnglishGrammar
 module EnAstarParser = Astar.MakeAStarParser (EnGrammar)
-module EnPrinter = Printer.ParsePrinter (EnGrammar)
+module EnPrinter = Printer.EnglishPrinter
 module EnLoader = Reader.EnglishLoader
 
 
@@ -34,7 +34,7 @@ let spec =
 let usage = !%"\n%sUsage: thorn [-nbest] [-beta] [-format] [-lang] model seeds"
             EnPrinter.(show_derivation sample_tree)
 
-let valid_format s = List.mem s ["auto"; "deriv"; "html"; "ptb"]
+let valid_format s = List.mem s ["auto"; "deriv"; "html"; "ptb"; "prolog"]
 
 let status =
 "[parser] Camelthorn CCG Parser\n"              ^^

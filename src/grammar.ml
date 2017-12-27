@@ -47,32 +47,35 @@ end
 module type GRAMMAR =
 sig
     type feature
+    type rules
 
-    module Rules : RULES
+    module Rules : RULES with type t = rules
     module Feature : FEATURE with type t = feature
     module Cat : CATEGORIES with type feature = Feature.t
-    module Tree : TREE with type cat = Cat.t and type op = Rules.t
+    module Tree : TREE with type cat = Cat.t and type op = rules
 
-    val apply : Cat.t * Cat.t -> Rules.t -> (Rules.t * Cat.t) list
-    val apply_rules : Cat.t * Cat.t -> (Rules.t * Cat.t) list
+    val apply : Cat.t * Cat.t -> rules -> (rules * Cat.t) list
+    val apply_rules : Cat.t * Cat.t -> (rules * Cat.t) list
 
     val possible_root_cats : Cat.t list
-    val is_acceptable_unary : Cat.t -> Rules.t -> bool
+    val is_acceptable_unary : Cat.t -> rules -> bool
     (* TODO: generalize to work on tree object *)
     val resolve_dependency : int * int -> int * int -> int * int
 
     val apply_rules_with_cache
-        : (Cat.t * Cat.t, (Rules.t * Cat.t) list) Hashtbl.t -> Cat.t * Cat.t -> (Rules.t * Cat.t) list
+        : (Cat.t * Cat.t, (rules * Cat.t) list) Hashtbl.t -> Cat.t * Cat.t -> (rules * Cat.t) list
 
     (* check a pair of cats is seen in a dictionary *)
     val is_seen : (Cat.t * Cat.t, bool) Hashtbl.t -> Cat.t * Cat.t -> bool
 end
 
+type base_rules = [ `FwdApp | `BwdApp | `Intro | `Unary]
+
 module BaseGrammar (Cat : CATEGORIES) =
 struct
     open Cat
 
-    type t = [ `FwdApp | `BwdApp | `Intro | `Unary]
+    type t = base_rules
 
     let show = function
         | `FwdApp  -> ">"
@@ -179,24 +182,29 @@ struct
 
 end
 
+type en_rules = [ `FwdCmp
+                | `BwdCmp
+                | `GenFwdCmp
+                | `GenBwdCmp
+                | `Conj           (* Conjunction *)
+                | `RP             (* RemovePunctuation *)
+                | `CommaVPtoADV   (* CommaAndVerbPhraseToAdverb *)
+                | `ParentDirect   (* ParentheticalDirectSpeech *)
+                | base_rules]
 
 module EnglishGrammar : GRAMMAR
-    with type feature = en_feature =
+    with type feature = en_feature
+    and type rules = en_rules =
 struct
     type feature = en_feature
     module Feature = EnglishFeature
     module Cat = Categories (Feature)
     module Base = BaseGrammar (Cat)
+
+    type rules = en_rules
+
     module Rules = struct
-        type t = [ `FwdCmp
-                 | `BwdCmp
-                 | `GenFwdCmp
-                 | `GenBwdCmp
-                 | `Conj           (* Conjunction *)
-                 | `RP             (* RemovePunctuation *)
-                 | `CommaVPtoADV   (* CommaAndVerbPhraseToAdverb *)
-                 | `ParentDirect   (* ParentheticalDirectSpeech *)
-                 | Base.t]
+        type t = rules
 
         let to_list = [`FwdApp
                       ; `BwdApp
@@ -253,18 +261,8 @@ struct
         in
         let conj2 = function
             | `Punct "conj", `Bwd (`NP `None, `NP `None) -> [np]
-            (*
-            | _, `Bwd (`NP _, `NP _) -> []
-            | _, `N _ -> []
-            | `Punct ",", y when not (is_punct y)
-                              && not (is_type_raised y) -> [y]
-            *)
             | _ -> [] 
-        in
-        let conj3 = function
-            | `NP `None, `Bwd (`NP `None, `NP `None) -> [np]
-            | _ -> [] 
-        in List.flatten [conj1 cs; conj2 cs] (* ; conj3 cs] *)
+        in conj1 cs @ conj2 cs
 
     (* , S[ng|pss]\NP --> (S\NP)\(S\NP) *)
     let comma_vp_to_adv = function
@@ -318,26 +316,31 @@ struct
                                       in Hashtbl.mem seen_rules (prep c1, prep c2)
 end
 
+type ja_rules = [ `FwdCmp
+                | `BwdCmp
+                | `GenBwdCmp2
+                | `GenBwdCmp3
+                | `GenBwdCmp4
+                | `CrsFwdCmp1
+                | `CrsFwdCmp2
+                | `CrsFwdCmp3
+                | `Conj
+                | base_rules]
 
 module JapaneseGrammar : GRAMMAR
-    with type feature = ja_feature =
+    with type feature = ja_feature
+    and type rules = ja_rules =
 struct
     type feature = ja_feature
     module Feature = JapaneseFeature
     module Cat = Categories (Feature)
     module Base = BaseGrammar (Cat)
+
+    type rules = ja_rules
+
     module Rules = struct
 
-        type t = [ `FwdCmp
-                 | `BwdCmp
-                 | `GenBwdCmp2
-                 | `GenBwdCmp3
-                 | `GenBwdCmp4
-                 | `CrsFwdCmp1
-                 | `CrsFwdCmp2
-                 | `CrsFwdCmp3
-                 | `Conj
-                 | Base.t]
+        type t = rules
 
         let to_list = [`FwdApp
                       ; `BwdApp

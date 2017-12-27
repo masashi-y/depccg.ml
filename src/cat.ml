@@ -23,6 +23,7 @@ sig
     val pp : t
     val (/:) : t -> t -> t
     val (|:) : t -> t -> t
+    val (!:) : string -> t
     val (=:=) : t -> t -> bool
     val show : ?bracket:bool -> t -> string
 
@@ -57,6 +58,7 @@ struct
     and pp = `PP Feature.none
     and (/:) x y = `Fwd (x, y)
     and (|:) x y = `Bwd (x, y)
+    and (!:) x = `Punct x
 
 
     let rec (=:=) a b = match (a, b) with
