@@ -16,7 +16,6 @@ module JaPrinter = Printer.ParsePrinter (JaGrammar)
 module JaLoader = Reader.JapaneseLoader
 
 
-let (</>) = Filename.concat
 
 let paths = ref []
 and nbest = ref 1
@@ -34,7 +33,7 @@ let spec =
 let usage = !%"\n%sUsage: thorn [-nbest] [-beta] [-format] [-lang] model seeds"
             EnPrinter.(show_derivation sample_tree)
 
-let valid_format s = List.mem s ["auto"; "deriv"; "html"; "ptb"; "prolog"]
+let valid_format s = List.mem s ["auto"; "deriv"; "html"; "ptb"; "prolog"; "htmls"]
 
 let status =
 "[parser] Camelthorn CCG Parser\n"              ^^
@@ -79,12 +78,14 @@ let main_en model seeds =
             seen_rules_size cat_dict_size !nbest !beta !out;
     flush stderr;
     let t = Sys.time () in
+    let attribs = List.map (fun s -> s.attribs) ss.seeds in
+    let names = List.map (fun s -> s.id) ss.seeds in
     let res = progress_map ss.seeds
             ~f:(fun s -> EnAstarParser.parse (Reader.read_proto_matrix n_cats s)
             ~cat_list ~unary_rules ~seen_rules ~cat_dict
             ~nbest:(!nbest) ~beta:(!beta) ~unary_penalty:0.1 ()) in
     Printf.eprintf "\nExecution time: %fs\n" (Sys.time() -. t);
-    EnPrinter.output_results !out res
+    EnPrinter.output_results !out names attribs res
 
 
 (* main function for Japanese parsing *)
@@ -100,12 +101,13 @@ let main_ja model seeds =
             seen_rules_size 0 !nbest !beta !out;
     flush stderr;
     let t = Sys.time () in
+    let names = List.map (fun s -> s.id) ss.seeds in
     let res = progress_map ss.seeds
             ~f:(fun s -> JaAstarParser.parse (Reader.read_proto_matrix n_cats s)
             ~cat_list ~unary_rules ~seen_rules ~cat_dict:None
             ~nbest:(!nbest) ~beta:(!beta) ~unary_penalty:0.1 ()) in
-    Printf.eprintf "\nExecution time: %fs\n" (Sys.time() -. t);
-    JaPrinter.output_results !out res
+    Printf.eprintf "\nExecution time: %fs\n" (Sys.time () -. t);
+    JaPrinter.output_results !out names res
 
 
 let () =

@@ -18,12 +18,64 @@ _sym_db = _symbol_database.Default()
 DESCRIPTOR = _descriptor.FileDescriptor(
   name='ccg_seed.proto',
   package='',
-  syntax='proto3',
-  serialized_pb=_b('\n\x0e\x63\x63g_seed.proto\"E\n\x08\x43\x43GSeeds\x12\x0c\n\x04lang\x18\x01 \x01(\t\x12\x12\n\ncategories\x18\x02 \x03(\t\x12\x17\n\x05seeds\x18\x03 \x03(\x0b\x32\x08.CCGSeed\"_\n\x07\x43\x43GSeed\x12\n\n\x02id\x18\x01 \x01(\x05\x12\x10\n\x08sentence\x18\x02 \x03(\t\x12\x1a\n\tcat_probs\x18\x03 \x01(\x0b\x32\x07.Matrix\x12\x1a\n\tdep_probs\x18\x04 \x01(\x0b\x32\x07.Matrix\"/\n\x06Matrix\x12\x12\n\x06values\x18\x01 \x03(\x01\x42\x02\x10\x00\x12\x11\n\x05shape\x18\x02 \x03(\x03\x42\x02\x10\x00\x62\x06proto3')
+  syntax='proto2',
+  serialized_pb=_b('\n\x0e\x63\x63g_seed.proto\"F\n\tAttribute\x12\r\n\x05lemma\x18\x01 \x01(\t\x12\x0b\n\x03pos\x18\x02 \x01(\t\x12\r\n\x05\x63hunk\x18\x03 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x04 \x01(\t\"E\n\x08\x43\x43GSeeds\x12\x0c\n\x04lang\x18\x01 \x02(\t\x12\x12\n\ncategories\x18\x02 \x03(\t\x12\x17\n\x05seeds\x18\x03 \x03(\x0b\x32\x08.CCGSeed\"|\n\x07\x43\x43GSeed\x12\n\n\x02id\x18\x01 \x01(\t\x12\x10\n\x08sentence\x18\x02 \x03(\t\x12\x1a\n\tcat_probs\x18\x03 \x02(\x0b\x32\x07.Matrix\x12\x1a\n\tdep_probs\x18\x04 \x02(\x0b\x32\x07.Matrix\x12\x1b\n\x07\x61ttribs\x18\x05 \x03(\x0b\x32\n.Attribute\"/\n\x06Matrix\x12\x12\n\x06values\x18\x01 \x03(\x01\x42\x02\x10\x00\x12\x11\n\x05shape\x18\x02 \x03(\x05\x42\x02\x10\x00')
 )
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
 
 
+
+
+_ATTRIBUTE = _descriptor.Descriptor(
+  name='Attribute',
+  full_name='Attribute',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='lemma', full_name='Attribute.lemma', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='pos', full_name='Attribute.pos', index=1,
+      number=2, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='chunk', full_name='Attribute.chunk', index=2,
+      number=3, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='entity', full_name='Attribute.entity', index=3,
+      number=4, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  options=None,
+  is_extendable=False,
+  syntax='proto2',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=18,
+  serialized_end=88,
+)
 
 
 _CCGSEEDS = _descriptor.Descriptor(
@@ -35,7 +87,7 @@ _CCGSEEDS = _descriptor.Descriptor(
   fields=[
     _descriptor.FieldDescriptor(
       name='lang', full_name='CCGSeeds.lang', index=0,
-      number=1, type=9, cpp_type=9, label=1,
+      number=1, type=9, cpp_type=9, label=2,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -62,12 +114,12 @@ _CCGSEEDS = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto3',
+  syntax='proto2',
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=18,
-  serialized_end=87,
+  serialized_start=90,
+  serialized_end=159,
 )
 
 
@@ -80,8 +132,8 @@ _CCGSEED = _descriptor.Descriptor(
   fields=[
     _descriptor.FieldDescriptor(
       name='id', full_name='CCGSeed.id', index=0,
-      number=1, type=5, cpp_type=1, label=1,
-      has_default_value=False, default_value=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
@@ -94,15 +146,22 @@ _CCGSEED = _descriptor.Descriptor(
       options=None),
     _descriptor.FieldDescriptor(
       name='cat_probs', full_name='CCGSeed.cat_probs', index=2,
-      number=3, type=11, cpp_type=10, label=1,
+      number=3, type=11, cpp_type=10, label=2,
       has_default_value=False, default_value=None,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
     _descriptor.FieldDescriptor(
       name='dep_probs', full_name='CCGSeed.dep_probs', index=3,
-      number=4, type=11, cpp_type=10, label=1,
+      number=4, type=11, cpp_type=10, label=2,
       has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      options=None),
+    _descriptor.FieldDescriptor(
+      name='attribs', full_name='CCGSeed.attribs', index=4,
+      number=5, type=11, cpp_type=10, label=3,
+      has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       options=None),
@@ -114,12 +173,12 @@ _CCGSEED = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto3',
+  syntax='proto2',
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=89,
-  serialized_end=184,
+  serialized_start=161,
+  serialized_end=285,
 )
 
 
@@ -139,7 +198,7 @@ _MATRIX = _descriptor.Descriptor(
       options=_descriptor._ParseOptions(descriptor_pb2.FieldOptions(), _b('\020\000'))),
     _descriptor.FieldDescriptor(
       name='shape', full_name='Matrix.shape', index=1,
-      number=2, type=3, cpp_type=2, label=3,
+      number=2, type=5, cpp_type=1, label=3,
       has_default_value=False, default_value=[],
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -152,20 +211,29 @@ _MATRIX = _descriptor.Descriptor(
   ],
   options=None,
   is_extendable=False,
-  syntax='proto3',
+  syntax='proto2',
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=186,
-  serialized_end=233,
+  serialized_start=287,
+  serialized_end=334,
 )
 
 _CCGSEEDS.fields_by_name['seeds'].message_type = _CCGSEED
 _CCGSEED.fields_by_name['cat_probs'].message_type = _MATRIX
 _CCGSEED.fields_by_name['dep_probs'].message_type = _MATRIX
+_CCGSEED.fields_by_name['attribs'].message_type = _ATTRIBUTE
+DESCRIPTOR.message_types_by_name['Attribute'] = _ATTRIBUTE
 DESCRIPTOR.message_types_by_name['CCGSeeds'] = _CCGSEEDS
 DESCRIPTOR.message_types_by_name['CCGSeed'] = _CCGSEED
 DESCRIPTOR.message_types_by_name['Matrix'] = _MATRIX
+
+Attribute = _reflection.GeneratedProtocolMessageType('Attribute', (_message.Message,), dict(
+  DESCRIPTOR = _ATTRIBUTE,
+  __module__ = 'ccg_seed_pb2'
+  # @@protoc_insertion_point(class_scope:Attribute)
+  ))
+_sym_db.RegisterMessage(Attribute)
 
 CCGSeeds = _reflection.GeneratedProtocolMessageType('CCGSeeds', (_message.Message,), dict(
   DESCRIPTOR = _CCGSEEDS,

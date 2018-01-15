@@ -23,7 +23,7 @@ usage() {
     echo "Argument:"
     echo "  FILE              : input file (either raw text or seed file (*.seeds)"
     echo "Options:"
-    echo "  -f, --format      : output format {deriv,auto,xml,html,ptb,prolog} [$FORMAT]"
+    echo "  -f, --format      : output format {deriv,auto,xml,html,ptb,prolog,htmls} [$FORMAT]"
     echo "  -m, --model       : path to model directory [$MODEL]"
     echo "  -s, --seed        : seed file the supertagger outputs [$SEEDFILE]"
     echo "  -b, --batchsize   : batch size in tagger [$BATCHSIZE]"
@@ -81,12 +81,13 @@ done
 INPUT=$1
 
 if [ -z $INPUT ]; then
-    usage
-    exit 1
+    INPUT=/dev/stdin
+    # usage
+    # exit 1
 fi
 
 case $INPUT in
-    *\.seeds )
+    *\.seeds | *\.seed )
         log "skipping supertagging"
         SEEDFILE=$INPUT
         ;;
@@ -99,8 +100,14 @@ case $INPUT in
               sed -f tokenizer.sed | \
               sed 's/ _ /_/g' | \
             $TAGGER --out $SEEDFILE --batchsize $BATCHSIZE $MODEL
+            stat=$?
         else
             cat $INPUT |  $TAGGER --out $SEEDFILE --batchsize $BATCHSIZE $MODEL
+            stat=$?
+        fi
+        if [ $stat != 0 ]; then
+          log "some error occurred in tagging. exit."
+          exit 1
         fi
         ;;
 esac

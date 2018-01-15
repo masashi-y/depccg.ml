@@ -4,16 +4,24 @@
 
 (** {2 Types} *)
 
+type attribute = {
+  lemma : string option;
+  pos : string option;
+  chunk : string option;
+  entity : string option;
+}
+
 type matrix = {
   values : float list;
   shape : int list;
 }
 
 type ccgseed = {
-  id : int;
+  id : string option;
   sentence : string list;
-  cat_probs : matrix option;
-  dep_probs : matrix option;
+  cat_probs : matrix;
+  dep_probs : matrix;
+  attribs : attribute list;
 }
 
 type ccgseeds = {
@@ -25,6 +33,15 @@ type ccgseeds = {
 
 (** {2 Default values} *)
 
+val default_attribute : 
+  ?lemma:string option ->
+  ?pos:string option ->
+  ?chunk:string option ->
+  ?entity:string option ->
+  unit ->
+  attribute
+(** [default_attribute ()] is the default value for type [attribute] *)
+
 val default_matrix : 
   ?values:float list ->
   ?shape:int list ->
@@ -33,10 +50,11 @@ val default_matrix :
 (** [default_matrix ()] is the default value for type [matrix] *)
 
 val default_ccgseed : 
-  ?id:int ->
+  ?id:string option ->
   ?sentence:string list ->
-  ?cat_probs:matrix option ->
-  ?dep_probs:matrix option ->
+  ?cat_probs:matrix ->
+  ?dep_probs:matrix ->
+  ?attribs:attribute list ->
   unit ->
   ccgseed
 (** [default_ccgseed ()] is the default value for type [ccgseed] *)

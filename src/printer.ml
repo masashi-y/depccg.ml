@@ -143,6 +143,49 @@ struct
 </head>
 <body>%s</body></html>" (String.concat "" @@ List.mapi f tss))
 
+    let show_html_trees_separated names tss =
+        let dir = !% "results_%s" (current_time_string ()) in
+        let rec new_fname i n res =
+            if Sys.file_exists (dir </> res) then
+            new_fname (i+1) n (!%"%s%i.html" n i)
+            else res in
+        let f i (name, ts) =
+            let res = show_html_trees [ts] in
+            let fname = match name with
+                None -> !%"%d.html" i
+                | Some n -> new_fname 0 n (!%"%s.html" n) in
+            write_file (dir </> fname) res;
+            fname in
+        let () = Unix.mkdir dir 0o744 in
+        let filenames = List.mapi f (List.combine names tss) in
+        write_file (dir </> "index.html")
+(!%"<!doctype html>
+<html lang='en'>
+<head>
+  <meta charset='UTF-8'>
+  <title>results</title>
+  <style>
+    body {
+      font-size: 1.5em;
+    }
+  </style>
+</head>
+<body>
+<table border='1'>
+<tr>
+  <td>id</td>
+  <td>tree</td>
+</tr>%s
+</table>
+</body>
+</html>" (String.concat "" @@ List.mapi (fun i fname ->
+    !% "
+<tr>
+  <td>%d</td>
+  <td><a href=\"%s\">%s</a></td>
+</tr>" i fname fname) filenames));
+  Printf.eprintf "write results to directory: %s\n" dir
+
     let sample_tree = let open Cat in
                 make ~cat:s ~op:Rules.intro ~children:
                 [terminal np "Hanako";
@@ -152,7 +195,7 @@ struct
                          ]
                 ]
 
-    let output_results fmt res =
+    let output_results fmt names res =
         let f printfun i = function
             | [] -> ()
             | lst -> List.iter (fun (_, t) ->
@@ -162,6 +205,7 @@ struct
         | "deriv" -> List.iteri (f show_derivation) res
         | "ptb"   -> List.iteri (f (show_ptb 0)) res
         | "html"  -> pr (show_html_trees res)
+        | "htmls" -> show_html_trees_separated names res
         | _ -> invalid_arg (!%"Not accepted output format: %s\n" fmt)
 
 end
@@ -245,7 +289,7 @@ module EnglishPrinter = struct
         let show i tree =
             let buf = Buffer.create 100 in
             let indent depth = for i = 0 to depth do Buffer.add_char buf ' ' done in
-            let close depth = Buffer.add_char buf ')' in
+            let close () = Buffer.add_char buf ')' in
             let rec f depth = function
                 | {cat; str; children=[]} ->
                         indent depth;
@@ -254,21 +298,21 @@ module EnglishPrinter = struct
                         indent depth;
                         Printf.bprintf buf "lx(%s, %s,\n" (show_cat cat) (show_cat c.cat);
                         f (depth + 1) c;
-                        close depth
+                        close ()
                 | {cat; op=`Conj; children=[c1; c2]} ->
                         indent depth;
                         Printf.bprintf buf "conj(%s, %s,\n" (show_cat cat) (show_cat @@ get_arg cat);
                         f (depth + 1) c1;
                         Buffer.add_string buf ",\n";
                         f (depth + 1) c2;
-                        close depth
+                        close ()
                 | {cat; op; children=[c1; c2]} ->
                         indent depth;
                         Printf.bprintf buf "%s(%s,\n" (show_rule op) (show_cat cat);
                         f (depth + 1) c1;
                         Buffer.add_string buf ",\n";
                         f (depth + 1) c2;
-                        close depth
+                        close ()
                 | _ -> invalid_arg "failed in Prolog.show"
             in
             Buffer.add_string buf (!%"ccg(%d,\n" i);
@@ -276,6 +320,54 @@ module EnglishPrinter = struct
             Buffer.add_string buf ").\n";
             Buffer.contents buf
     end
+
+    module XML : sig
+        (* TODO *)
+        val show : 'a -> Tree.t -> string
+    end = struct
+        let show_xml_rule_type tree op = match tree with
+            | {cat; children=[{cat=cat'}]}
+                when Cat.is_type_raised cat &&
+                (cat' =:= Cat.np || cat' =:= Cat.pp)
+                -> "tr"
+            | {children=[_]} -> "lex"
+            | {children=[{cat};_]} -> begin match op with
+                | `FwdApp       -> "fa"
+                | `BwdApp       -> "ba"
+                | `FwdCmp       -> "fc"
+                | `BwdCmp       -> "bx"
+                | `GenFwdCmp    -> "gfc"
+                | `GenBwdCmp    -> "gbx"
+                | `Conj         -> "conj"
+                | `RP when is_punct cat -> "lp"
+                | `RP           -> "rp"
+                | `CommaVPtoADV -> "lp"
+                | `ParentDirect -> "lp"
+                | _ -> "other"
+            end
+            | _ -> invalid_arg (!%"unexpected rule in show_xml_rule_type: %s\n" (Rules.show op))
+
+        let rec show attr tree = match tree with
+            | {cat; str; children=[]} ->
+                    let start = 1 in
+                    let lemma = str in
+                    let pos = str in
+                    let entity = str in
+            (!%"<lf start=\"%d\" span=\"1\" word=\"%s\" lemma=\"%s\" pos=\"%s\" entity=\"%s\" cat=\"%s\" />\n"
+                start (escape_html_simple str) lemma pos entity (Cat.show cat))
+            | {cat; op; children} -> 
+                    let rule_type = show_xml_rule_type tree op in
+                    !%"<rule type=\"%s\" cat=\"%s\">\n%s\n</rule>"
+                    rule_type (Cat.show cat) (String.concat "" @@ List.map (show attr) children)
+    end
+
+        let show_xml_trees attribs tss =
+            let f ts = match ts with
+                | (attr :: _, (_, t) :: _) -> !%"<ccg>\n%s\n</ccg>" (XML.show attr t)
+                | _ -> invalid_arg "failed in show_xml_trees"
+            in (!%"<?xml version=\"1.0\" encoding=\"UTF-8\"?>
+<?xml-stylesheet type=\"text/xsl\" href=\"candc.xml\"?>
+<candc>\n%s\n</candc>" (String.concat "\n" @@ List.map f (List.combine attribs tss)))
 
     let show_prolog trees = 
         let warn = let did = ref false in fun () ->
@@ -293,7 +385,7 @@ module EnglishPrinter = struct
             | _ -> invalid_arg ""
         in List.iteri f trees
 
-    let output_results fmt res =
+    let output_results fmt names attribs res =
         let f printfun i = function
             | [] -> ()
             | lst -> List.iter (fun (_, t) ->
@@ -303,6 +395,8 @@ module EnglishPrinter = struct
         | "deriv" -> List.iteri (f show_derivation) res
         | "ptb"   -> List.iteri (f (show_ptb 0)) res
         | "html"  -> pr (show_html_trees res)
+        | "htmls" -> show_html_trees_separated names res
+        | "xml"  -> pr (show_xml_trees attribs res)
         | "prolog" -> show_prolog res
         | _ -> invalid_arg (!%"Not accepted output format: %s\n" fmt)
 end

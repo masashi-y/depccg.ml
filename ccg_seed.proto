@@ -1,19 +1,27 @@
-syntax = "proto3";
+syntax="proto2";
+
+message Attribute {
+    optional string lemma = 1;
+    optional string pos = 2;
+    optional string chunk = 3;
+    optional string entity = 4;
+}
 
 message CCGSeeds {
-    string lang = 1;
+    required string lang = 1;
     repeated string categories = 2;
     repeated CCGSeed seeds = 3;
 }
 
 message CCGSeed {
-    int32 id = 1 [(ocaml_type) = int_t];
+    optional string id = 1;
     repeated string sentence = 2;
-    Matrix cat_probs = 3;
-    Matrix dep_probs = 4;
+    required Matrix cat_probs = 3;
+    required Matrix dep_probs = 4;
+    repeated Attribute attribs = 5;
 }
 
 message Matrix {
     repeated double values = 1 [packed = false];
-    repeated int32 shape = 2 [packed = false,(ocaml_type) = int_t];
+    repeated int32 shape = 2 [packed = false];
 }

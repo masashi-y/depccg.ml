@@ -77,9 +77,6 @@ let read_proto_matrix n_cats =
     let convert = function
         | {values=v; shape=[i; j]} -> Matrix.reshape (Matrix.of_list v) (i, j)
         | _ -> error ()
-    in function
-    | {sentence=s;
-       cat_probs=Some c;
-       dep_probs=Some p} -> (s, convert c, convert p)
-    | _ -> error ()
+    in fun {sentence; cat_probs; dep_probs;}
+        -> (sentence, convert cat_probs, convert dep_probs)
 

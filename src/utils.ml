@@ -1,9 +1,15 @@
 
+let (</>) = Filename.concat
+
 let p = Printf.printf
 
 let pr = print_endline
 
 let (!%) = Printf.sprintf
+
+let option_get default = function
+    | Some x -> x
+    | None -> default
 
 let read_lines file =
     let ch = open_in file in
@@ -42,6 +48,16 @@ let escape_html_simple s =
         | c -> add_char buf c
     in String.iter f s;
     contents buf
+
+let current_time_string () =
+    let Unix.{tm_sec; tm_min; tm_hour; tm_mday;
+         tm_mon; tm_year } = Unix.gmtime (Unix.time ()) in
+    !% "%d:%d:%d:%d:%d:%d" tm_year (tm_mon + 1) tm_mday tm_hour tm_min tm_sec
+
+let write_file filename str =
+    let oc = open_out filename in
+    output_string oc str;
+    close_out oc
 
 module Matrix =
 struct
@@ -104,7 +120,7 @@ struct
     let rec sequence x = function
         | [] -> x
         | f::t -> sequence (x >>= f) t
-    let sequence_ m l = sequence m l; ()
+    let sequence_ m l = ignore (sequence m l)
 end
 
 module Option =
@@ -129,4 +145,54 @@ struct
 
     include Core
     include TypedMonad(Core)
+end
+
+module StateM : sig
+    type ('a, 'b) t
+    val bind : ('a, 'c) t -> ('a -> ('b, 'c) t) -> ('b, 'c) t
+    val (>>=) : ('a, 'c) t -> ('a -> ('b, 'c) t) -> ('b, 'c) t
+
+    (* these two functions does not pass state transitions *)
+    val (&&&) : ('a -> ('b, 'c) t) -> ('e -> ('d, 'c) t) -> (('a * 'e) -> (('b * 'd), 'c) t)
+    val sequence' : ('a, 'b) t list -> ('a list, 'b) t
+
+    val return : 'a -> ('a, 'b) t
+
+    val get : ('a, 'a) t
+    val put : 'a -> (unit, 'a) t
+
+    val run : ('a, 'b) t -> 'b -> 'a * 'b
+    val eval : ('a, 'b) t -> 'b -> 'a
+    val exec : ('a, 'b) t -> 'b -> 'b
+end = struct
+    type ('a, 'b) t = State of ('b -> 'a * 'b)
+
+    let value (State s) = s
+    let bind m f = State (fun s -> let a, s' = (value m) s in ((value (f a)) s'))
+    let (>>=) = bind
+    let return x = State (fun s -> (x, s))
+
+    let get = State (fun s -> (s, s))
+    let put s = State (fun _ -> ((), s))
+
+    let (&&&) f1 f2 (t1, t2) = get >>= fun s ->
+        f1 t1 >>= fun r1 ->
+        put s >>= fun () ->
+        f2 t2 >>= fun r2 ->
+        put s >>= fun () ->
+        return (r1, r2)
+
+    let rec sequence' = function
+        | [] -> return []
+        | hd :: rest -> 
+            get >>= fun s ->
+            hd >>= fun hd ->
+            put s >>= fun () ->
+            sequence' rest >>= fun rest ->
+            put s >>= fun () ->
+            return (hd :: rest)
+
+    let run (State m) a = m a
+    let eval m a = fst (run m a)
+    let exec m a = snd (run m a)
 end
