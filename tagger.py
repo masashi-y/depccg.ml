@@ -83,10 +83,10 @@ class SpacyAnnotator(Annotator):
         if x.ent_iob_ == 'O':
             return x.ent_iob_
         else:
-            return x.ent_iob_ + '_' + x.ent_type_
+            return x.ent_iob_ + '-' + x.ent_type_
 
 
-def annotate(annotator, sentence):
+def annotate_one(annotator, sentence):
     length = len(sentence)
     annotator.annotate(" ".join(sentence))
     attribs = []
@@ -105,7 +105,7 @@ annotators = {
 }
 
 if args.annotator is not None:
-    annotator = annotators[args.annotator]
+    annotator = annotators[args.annotator]()
 else:
     annotator = None
 
@@ -140,7 +140,7 @@ for (i, _, (cat_probs, dep_probs)) in res:
     seed.dep_probs.values.extend(dep_probs.flatten().astype(float).tolist())
     seed.dep_probs.shape.extend(list(dep_probs.shape))
     if annotator is not None:
-        seed.attribs.extend(annotate(annotator, sentence))
+        seed.attribs.extend(annotate_one(annotator, sentence))
     seeds[i] = seed
 seeds = CCGSeeds(lang="en", categories=tagger.cats, seeds=seeds)
 

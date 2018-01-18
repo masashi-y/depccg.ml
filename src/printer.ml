@@ -2,6 +2,16 @@
 open Grammar
 open Utils
 
+module StateM =
+struct
+    include StateM
+    let pop' () = StateM.(get >>= function
+        | _, [] -> invalid_arg "pop'"
+        | i, (x :: xs) ->
+                put (i+1, xs) >>= fun () ->
+                return (i, x))
+end
+
 module ParsePrinter (Grammar : GRAMMAR) =
 struct
 
@@ -218,7 +228,7 @@ module EnglishPrinter = struct
     open Cat
 
     module Prolog : sig
-        val show : int -> Tree.t -> string
+        val show : int -> Attributes.t -> Tree.t -> string
     end = struct
         let rec remove_noisy_rules ({op; cat; str; children} as self) = 
             let children = List.map remove_noisy_rules children in
@@ -277,53 +287,51 @@ module EnglishPrinter = struct
             | `Bwd (_, y) -> y
             | _ -> invalid_arg "failed in get_arg"
 
-    let escape_str s =
-        let open Buffer in
-        let buf = create 10 in
-        let f = function
-            | '\'' -> add_string buf "\\'"
-            | c -> add_char buf c
-    in String.iter f s;
-    contents buf
+        let escape_str s =
+            let open Buffer in
+            let buf = create 10 in
+            let f = function
+                | '\'' -> add_string buf "\\'"
+                | c -> add_char buf c
+        in String.iter f s;
+        contents buf
 
-        let show i tree =
-            let buf = Buffer.create 100 in
-            let indent depth = for i = 0 to depth do Buffer.add_char buf ' ' done in
-            let close () = Buffer.add_char buf ')' in
-            let rec f depth = function
-                | {cat; str; children=[]} ->
-                        indent depth;
-                    Printf.bprintf buf "t(%s, '%s')" (show_cat cat) (escape_str str)
-                | {cat; children=[c]} ->
-                        indent depth;
-                        Printf.bprintf buf "lx(%s, %s,\n" (show_cat cat) (show_cat c.cat);
-                        f (depth + 1) c;
-                        close ()
-                | {cat; op=`Conj; children=[c1; c2]} ->
-                        indent depth;
-                        Printf.bprintf buf "conj(%s, %s,\n" (show_cat cat) (show_cat @@ get_arg cat);
-                        f (depth + 1) c1;
-                        Buffer.add_string buf ",\n";
-                        f (depth + 1) c2;
-                        close ()
-                | {cat; op; children=[c1; c2]} ->
-                        indent depth;
-                        Printf.bprintf buf "%s(%s,\n" (show_rule op) (show_cat cat);
-                        f (depth + 1) c1;
-                        Buffer.add_string buf ",\n";
-                        f (depth + 1) c2;
-                        close ()
+        let show i attribs tree =
+            let open Attributes in
+            let mk_indent depth = String.make depth ' ' in
+            let rec f depth = 
+                let indent = mk_indent depth in
+                let f' c = f (depth + 1) c in StateM.(function
+                | {cat; str; children=[]} -> do_;
+                    att <-- pop ();
+                    let lemma = Option.get "X" (Attribute.lemma att) in
+                    let pos = Option.get "X" (Attribute.pos att) in
+                    let entity = Option.get "X" (Attribute.entity att) in
+                    let chunk = Option.get "X" (Attribute.chunk att) in
+                    return (!% "%st(%s, '%s', '%s', '%s', '%s' '%s')"
+                               indent (show_cat cat) (escape_str str)
+                               (escape_str lemma) pos chunk entity)
+                | {cat; children=[c]} -> do_;
+                    child <-- f' c;
+                    return (!% "%slx(%s, %s,\n%s)" indent (show_cat cat) (show_cat c.cat) child)
+                | {cat; op=`Conj; children=[c1; c2]} -> do_;
+                    child1 <-- f' c1;
+                    child2 <-- f' c2;
+                    return (!% "%sconj(%s, %s,\n%s,\n%s)" indent (show_cat cat)
+                                (show_cat @@ get_arg cat) child1 child2)
+                | {cat; op; children=[c1; c2]} -> do_;
+                    child1 <-- f' c1;
+                    child2 <-- f' c2;
+                    return (!% "%s%s(%s,\n%s,\n%s)" indent (show_rule op)
+                                (show_cat cat) child1 child2)
                 | _ -> invalid_arg "failed in Prolog.show"
-            in
-            Buffer.add_string buf (!%"ccg(%d,\n" i);
-            f 0 @@ remove_noisy_rules tree;
-            Buffer.add_string buf ").\n";
-            Buffer.contents buf
+            ) in
+            !%"ccg(%d,\n%s).\n" i (StateM.eval (f 1 @@ remove_noisy_rules tree) attribs)
     end
 
     module XML : sig
         (* TODO *)
-        val show : 'a -> Tree.t -> string
+        val show : Attributes.t -> Tree.t -> string
     end = struct
         let show_xml_rule_type tree op = match tree with
             | {cat; children=[{cat=cat'}]}
@@ -347,29 +355,34 @@ module EnglishPrinter = struct
             end
             | _ -> invalid_arg (!%"unexpected rule in show_xml_rule_type: %s\n" (Rules.show op))
 
-        let rec show attr tree = match tree with
-            | {cat; str; children=[]} ->
-                    let start = 1 in
-                    let lemma = str in
-                    let pos = str in
-                    let entity = str in
-            (!%"<lf start=\"%d\" span=\"1\" word=\"%s\" lemma=\"%s\" pos=\"%s\" entity=\"%s\" cat=\"%s\" />\n"
-                start (escape_html_simple str) lemma pos entity (Cat.show cat))
-            | {cat; op; children} -> 
-                    let rule_type = show_xml_rule_type tree op in
-                    !%"<rule type=\"%s\" cat=\"%s\">\n%s\n</rule>"
-                    rule_type (Cat.show cat) (String.concat "" @@ List.map (show attr) children)
+        let show attr tree = 
+            let open Attributes in
+            let rec f tree = StateM.(match tree with
+                | {cat; str; children=[]} -> pop' () >>= fun (start, att) ->
+                        let lemma = Option.get "X" (Attribute.lemma att) in
+                        let pos = Option.get "X" (Attribute.pos att) in
+                        let entity = Option.get "X" (Attribute.entity att) in
+                        return (!%
+                "<lf start=\"%d\" span=\"1\" word=\"%s\" lemma=\"%s\" pos=\"%s\" entity=\"%s\" cat=\"%s\" />"
+                    start (escape_html_simple str) (escape_html_simple lemma) pos entity (Cat.show cat))
+                | {cat; op; children} -> 
+                        let rule_type = show_xml_rule_type tree op in
+                        mapM f children >>= fun children ->
+                        return (!%"<rule type=\"%s\" cat=\"%s\">\n%s\n</rule>"
+                        rule_type (Cat.show cat) (String.concat "\n" children))
+            )
+            in StateM.eval (f tree) (1, attr)
     end
 
         let show_xml_trees attribs tss =
-            let f ts = match ts with
-                | (attr :: _, (_, t) :: _) -> !%"<ccg>\n%s\n</ccg>" (XML.show attr t)
+            let f attr ts = match ts with
+                | (_, t) :: _ -> !%"<ccg>\n%s\n</ccg>" (XML.show attr t)
                 | _ -> invalid_arg "failed in show_xml_trees"
             in (!%"<?xml version=\"1.0\" encoding=\"UTF-8\"?>
 <?xml-stylesheet type=\"text/xsl\" href=\"candc.xml\"?>
-<candc>\n%s\n</candc>" (String.concat "\n" @@ List.map f (List.combine attribs tss)))
+<candc>\n%s\n</candc>" (String.concat "\n\n" @@ List.map2 f attribs tss))
 
-    let show_prolog trees = 
+    let show_prolog attribs trees = 
         let warn = let did = ref false in fun () ->
             if not !did then
                 prerr_endline "WARNING: only the one best parses are output in prolog format";
@@ -380,10 +393,10 @@ module EnglishPrinter = struct
             ":- multifile ccg/2, id/2.\n"    ^
             ":- discontiguous ccg/2, id/2.\n");
         let f i = function
-            (_, t) :: rest -> pr (Prolog.show (i + 1) t);
+            attrib, (_, t) :: rest -> pr (Prolog.show (i + 1) attrib t);
                               if (List.length rest > 0) then warn ()
             | _ -> invalid_arg ""
-        in List.iteri f trees
+        in List.iteri f (List.combine attribs trees)
 
     let output_results fmt names attribs res =
         let f printfun i = function
@@ -397,6 +410,6 @@ module EnglishPrinter = struct
         | "html"  -> pr (show_html_trees res)
         | "htmls" -> show_html_trees_separated names res
         | "xml"  -> pr (show_xml_trees attribs res)
-        | "prolog" -> show_prolog res
+        | "prolog" -> show_prolog attribs res
         | _ -> invalid_arg (!%"Not accepted output format: %s\n" fmt)
 end

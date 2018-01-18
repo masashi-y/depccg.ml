@@ -78,7 +78,7 @@ let main_en model seeds =
             seen_rules_size cat_dict_size !nbest !beta !out;
     flush stderr;
     let t = Sys.time () in
-    let attribs = List.map (fun s -> s.attribs) ss.seeds in
+    let attribs = List.map Attributes.from_protobuf ss.seeds in
     let names = List.map (fun s -> s.id) ss.seeds in
     let res = progress_map ss.seeds
             ~f:(fun s -> EnAstarParser.parse (Reader.read_proto_matrix n_cats s)

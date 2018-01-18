@@ -12,6 +12,7 @@ BETA=1.0e-15
 NBEST=1
 LNG="en"
 TOKENIZE="false"
+ANNO="candc"
 log () {
     echo "[shell]" $1 >&2
 }
@@ -31,6 +32,7 @@ usage() {
     echo "  -t, --tokenize    : apply tokenization (only English) [$TOKENIZE]"
     echo "  -l, --lang        : parse english or japanese sentences {en, ja} [$LNG]"
     echo "  -v, --beta        : beta value used in pruning [$BETA]"
+    echo "  -a, --annotator   : annotate pos, entity, lemmas using {candc,spacy} [$ANNO]"
     echo "  -h, --help        : show this text"
     echo
     exit 1
@@ -67,6 +69,10 @@ do
             BETA=$2
             shift 2
             ;;
+        '-a' | '--annotator' )
+            ANNO=$2
+            shift 2
+            ;;
         '-l' | '--lang' )
             LNG=$2
             shift 2
@@ -86,6 +92,10 @@ if [ -z $INPUT ]; then
     # exit 1
 fi
 
+if [ "$FORMAT" = "xml" ] || [ "$FORMAT" = "prolog" ]; then
+    ANNOTATOR="--annotator $ANNO"
+fi
+
 case $INPUT in
     *\.seeds | *\.seed )
         log "skipping supertagging"
@@ -93,16 +103,16 @@ case $INPUT in
         ;;
     * )
         log "supertagging"
-        log "$TAGGER --out $SEEDFILE --batchsize $BATCHSIZE $MODEL"
+        log "$TAGGER --out $SEEDFILE --batchsize $BATCHSIZE $ANNOTATOR $MODEL"
         if [ "$TOKENIZE" = "true" ] && [ "$LNG" = "en" ]; then
             log "tokenizing the input texts"
             cat $INPUT | \
               sed -f tokenizer.sed | \
               sed 's/ _ /_/g' | \
-            $TAGGER --out $SEEDFILE --batchsize $BATCHSIZE $MODEL
+            $TAGGER --out $SEEDFILE --batchsize $BATCHSIZE $ANNOTATOR $MODEL
             stat=$?
         else
-            cat $INPUT |  $TAGGER --out $SEEDFILE --batchsize $BATCHSIZE $MODEL
+            cat $INPUT |  $TAGGER --out $SEEDFILE --batchsize $BATCHSIZE $ANNOTATOR $MODEL
             stat=$?
         fi
         if [ $stat != 0 ]; then

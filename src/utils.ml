@@ -7,10 +7,6 @@ let pr = print_endline
 
 let (!%) = Printf.sprintf
 
-let option_get default = function
-    | Some x -> x
-    | None -> default
-
 let read_lines file =
     let ch = open_in file in
     let rec parse () =
@@ -145,6 +141,10 @@ struct
 
     include Core
     include TypedMonad(Core)
+
+    let get default = function
+        | Some x -> x
+        | None -> default
 end
 
 module StateM : sig
@@ -164,6 +164,8 @@ module StateM : sig
     val run : ('a, 'b) t -> 'b -> 'a * 'b
     val eval : ('a, 'b) t -> 'b -> 'a
     val exec : ('a, 'b) t -> 'b -> 'b
+    val pop : unit -> ('a, 'a list) t
+    val mapM : ('a -> ('b, 'c) t) -> 'a list -> ('b list, 'c) t
 end = struct
     type ('a, 'b) t = State of ('b -> 'a * 'b)
 
@@ -195,4 +197,19 @@ end = struct
     let run (State m) a = m a
     let eval m a = fst (run m a)
     let exec m a = snd (run m a)
+
+    let pop () =
+        get >>= fun s ->
+        match s with
+            | [] -> failwith "pop failed in Attributes.StateM.pop"
+            | x :: xs -> 
+                put xs >>= fun () ->
+                return x
+
+    let rec mapM f = function
+        | [] -> return []
+        | x :: xs ->
+            f x >>= fun x ->
+            mapM f xs >>= fun xs ->
+            return (x :: xs)
 end

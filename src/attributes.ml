@@ -1,7 +1,10 @@
 
+open Utils
+
+module S = Ccg_seed_types
+
 module Attribute =
 struct
-    module S = Ccg_seed_types
     type t = S.attribute
 
     let lemma t = t.S.lemma
@@ -18,4 +21,6 @@ struct
 end
 
 type t = Attribute.t list
+
+let from_protobuf s = s.S.attribs
 

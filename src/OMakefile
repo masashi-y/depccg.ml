@@ -28,6 +28,7 @@ OCAMLPACKS[] =
    str
    psq
    ocaml-protoc
+   ppx_monadic
    unix
 # camlp4 プリプロセッサを使うことを omake に伝える
 # OCAMLFINDFLAGS = -syntax camlp4o
