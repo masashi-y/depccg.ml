@@ -14,7 +14,9 @@ FILES[] =
    main
    ccg_seed_pb
    ccg_seed_types
+   attributes
    utils
+   # logic
 # 別の書き方もある:
 # FILES = parser lexer \
 #         main
@@ -26,6 +28,7 @@ OCAMLPACKS[] =
    str
    psq
    ocaml-protoc
+   unix
 # camlp4 プリプロセッサを使うことを omake に伝える
 # OCAMLFINDFLAGS = -syntax camlp4o
 

@@ -18,29 +18,38 @@ module type TREE =
 sig
     type cat
     type op
-    type t = {cat      : cat;
-              op       : op;
-              children : t list;
-              str      : string}
+    type t = {
+        cat : cat;
+        op : op;
+        children : t list;
+        str: string
+    }
+    type scored = (float * t) list
     
     val make : cat:cat -> op:op -> children:(t list) -> t
     val terminal : cat -> string -> t
+    val make_scored : ?score:float -> t -> scored
 end
 
 module Tree (Cat : CATEGORIES) (Rules : RULES) = 
 struct
     type cat = Cat.t
     type op = Rules.t
-    type t = {cat      : cat;
-              op       : op;
-              children : t list;
-              str      : string}
+    type t = {
+        cat : cat;
+        op : op;
+        children : t list;
+        str: string
+    }
+    type scored = (float * t) list
 
     let make ~cat ~op ~children =
         {cat=cat; op=op; children=children; str=""}
 
     let terminal cat s =
         {cat=cat; op=Rules.intro; children=[]; str=s}
+
+    let make_scored ?(score=0.0) t = [(score, t)]
 end
 
 

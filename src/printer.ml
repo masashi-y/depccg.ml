@@ -147,13 +147,13 @@ struct
         let dir = !% "results_%s" (current_time_string ()) in
         let rec new_fname i n res =
             if Sys.file_exists (dir </> res) then
-            new_fname (i+1) n (!%"%s%i.html" n i)
+            new_fname (i+1) n (!%"%s.%i.html" n i)
             else res in
         let f i (name, ts) =
             let res = show_html_trees [ts] in
             let fname = match name with
                 None -> !%"%d.html" i
-                | Some n -> new_fname 0 n (!%"%s.html" n) in
+                | Some n -> new_fname 1 n (!%"%s.html" n) in
             write_file (dir </> fname) res;
             fname in
         let () = Unix.mkdir dir 0o744 in

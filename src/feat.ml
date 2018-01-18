@@ -20,7 +20,7 @@ type en_feature = [ `None | `Nb | `Var
                   | `DCL | `EM | `EXPL | `FOR | `FRG
                   | `INTJ | `INV | `NG | `NUM
                   | `POSS | `PSS | `PT | `Q | `QEM
-                  | `THR | `TO | `WQ ]
+                  | `THR | `TO | `WQ | `CONJ ]
 
 
 module EnglishFeature : FEATURE with type t = en_feature =
@@ -48,7 +48,7 @@ struct
         | `PSS   -> "[pss]"  | `PT    -> "[pt]"
         | `Q     -> "[q]"    | `QEM   -> "[qem]"
         | `THR   -> "[thr]"  | `TO    -> "[to]"
-        | `WQ    -> "[wq]"
+        | `WQ    -> "[wq]"   | `CONJ  -> "[conj]"
 
 
     let parse = function
@@ -66,6 +66,7 @@ struct
                 | "pt"   -> `PT     | "q"    -> `Q
                 | "qem"  -> `QEM    | "thr"  -> `THR
                 | "to"   -> `TO     | "wq"   -> `WQ
+                | "conj" -> `CONJ
                 | _ -> invalid_arg feat
                in (feat', rest)
         | rest -> (`None, rest)

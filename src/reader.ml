@@ -80,3 +80,70 @@ let read_proto_matrix n_cats =
     in fun {sentence; cat_probs; dep_probs;}
         -> (sentence, convert cat_probs, convert dep_probs)
 
+
+module CCGBank :
+sig
+    open Grammar
+    open EnglishGrammar
+    val parse_line : string -> Tree.t
+    val parse_file : string -> string option list * Tree.t list
+end =
+struct
+    open Grammar
+    open EnglishGrammar
+
+    let preprocess s =
+        Str.(let regex = regexp "[<>]" in
+            let s' = global_replace regex " " s in
+            split (regexp " +") s')
+
+    let parse_line str =
+        let error () = invalid_arg (!%"failed to parse %s\n" str) in
+        let rec parse' stack = function
+            | [] -> begin match stack with
+               | [`Close x] -> x
+               | _ -> error ()
+            end
+            | "(" :: "L" :: cat :: pos :: _ :: word :: _ :: ")" :: rest
+                -> let n = Tree.terminal (Cat.parse cat) word in
+                   parse' (`Close n :: stack) rest
+            | "(" :: "T" :: cat :: _ :: _ :: rest
+                -> let n children = Tree.make ~cat:(Cat.parse cat) ~op:`Intro ~children in
+                    parse' (`Open n :: stack) rest
+            | ")" :: rest -> begin match stack with
+                | `Close l2 :: `Close l1 :: `Open t :: ss
+                    -> let n = t [l1; l2] in
+                       parse' (`Close n :: ss) rest
+                | `Close l :: `Open t :: ss
+                    -> let n = t [l] in
+                       parse' (`Close n :: ss) rest
+                | _ -> error ()
+            end
+            | _ -> error () in
+        parse' [] (preprocess str)
+
+    let parse_file file =
+        let rec aux (names, parses) = function
+            | [] -> (names, parses)
+            | name :: line :: rest ->
+                    Scanf.sscanf name "ID=%s@ " (fun name ->
+                        let names, parses = aux (names, parses) rest in
+                        let line = Str.(global_replace (regexp "\\[\\([a-z]+\\)\\]\\[[a-z]+\\]") "[\\1]" line) in
+                        let line = Str.(global_replace (regexp ")\\[conj\\]") ")" line) in
+                        let parse = try parse_line line
+                            with Parse_error s -> invalid_arg (!%"%s :%s" name s) in
+                        (Some name :: names, parse :: parses))
+            | _ -> invalid_arg "CCGBank.parse_file"
+        in aux ([], []) (read_lines file)
+end
+
+(*
+let () =
+    let paths = read_lines "path" in
+    let names, parses = List.fold_right (fun p (names, parses) ->
+        let name, parse = CCGBank.parse_file p in
+        (name @ names, parse @ parses)) paths ([], []) in
+    let attribs = List.map (fun _ -> [None]) names in
+    Printer.EnglishPrinter.output_results "htmls"  names attribs
+     (List.map Grammar.EnglishGrammar.Tree.make_scored parses)
+*)
