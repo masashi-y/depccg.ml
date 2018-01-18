@@ -126,13 +126,13 @@ struct
         let rec aux (names, parses) = function
             | [] -> (names, parses)
             | name :: line :: rest ->
-                    Scanf.sscanf name "ID=%s@ " (fun name ->
-                        let names, parses = aux (names, parses) rest in
-                        let line = Str.(global_replace (regexp "\\[\\([a-z]+\\)\\]\\[[a-z]+\\]") "[\\1]" line) in
-                        let line = Str.(global_replace (regexp ")\\[conj\\]") ")" line) in
-                        let parse = try parse_line line
-                            with Parse_error s -> invalid_arg (!%"%s :%s" name s) in
-                        (Some name :: names, parse :: parses))
+                Scanf.sscanf name "ID=%s@ " (fun name ->
+                    let names, parses = aux (names, parses) rest in
+                    let line = Str.(global_replace (regexp "\\[\\([a-z]+\\)\\]\\[[a-z]+\\]") "[\\1]" line) in
+                    let line = Str.(global_replace (regexp ")\\[conj\\]") ")" line) in
+                    let parse = try parse_line line
+                        with Parse_error s -> invalid_arg (!%"%s :%s" name s) in
+                    (Some name :: names, parse :: parses))
             | _ -> invalid_arg "CCGBank.parse_file"
         in aux ([], []) (read_lines file)
 end
