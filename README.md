@@ -13,7 +13,7 @@ OCaml implementation for A\* CCG parser in:
 * opam
 
 ```sh
-$ pip install chainer==1.23 protobuf
+$ pip install chainer protobuf
 $ opam install psq ocaml-protoc
 $ git clone git://github.com/masashi-y/Camelthorn.git
 $ cd Camelthorn
