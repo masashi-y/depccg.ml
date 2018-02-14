@@ -30,7 +30,6 @@ struct
 
     let read_ccgseeds_socket socket filename =
         let lines = String.concat "\n" (read_lines filename) in
-        print_endline lines;
         let input = Bytes.of_string lines in
         let sock = Unix.socket Unix.PF_UNIX Unix.SOCK_STREAM 0 in
         let addr = Unix.ADDR_UNIX socket in
