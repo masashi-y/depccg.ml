@@ -22,6 +22,28 @@ struct
             bytes 
         in Ccg_seed_pb.decode_ccgseeds (Pbrt.Decoder.of_bytes bytes)
 
+    let recvall sock =
+        let len = input_binary_int sock in
+        let buf = Bytes.create len in
+        really_input sock buf 0 len;
+        buf
+
+    let read_ccgseeds_socket socket filename =
+        let lines = String.concat "\n" (read_lines filename) in
+        print_endline lines;
+        let input = Bytes.of_string lines in
+        let sock = Unix.socket Unix.PF_UNIX Unix.SOCK_STREAM 0 in
+        let addr = Unix.ADDR_UNIX socket in
+        Unix.connect sock addr;
+        let sock_out = Unix.out_channel_of_descr sock in
+        let sock_in = Unix.in_channel_of_descr sock in
+        let input_length = Bytes.length input in
+        output_binary_int sock_out input_length;
+        output_bytes sock_out input;
+        flush sock_out;
+        let bytes = recvall sock_in in
+        Ccg_seed_pb.decode_ccgseeds (Pbrt.Decoder.of_bytes bytes)
+
     let read_cats file =
         let scan l = Scanf.sscanf l "%s %i" (fun s _ -> (Cat.parse s))
         in List.map scan (read_lines file)

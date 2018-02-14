@@ -5,6 +5,8 @@ from py.lstm_parser_bi_fast import FastBiaffineLSTMParser
 from google.protobuf.json_format import *
 import numpy as np
 import os, sys, chainer, argparse, socket, struct
+from tagger import *
+import multiprocessing
 
 
 def log(msg):
@@ -54,20 +56,16 @@ def daemonize():
     throw_away_io()
 
 
-def create_seeds(sents, tagging_result, categories):
-    seeds = [None for _ in range(len(sents))]
-    for (i, _, (cat_probs, dep_probs)) in tagging_result:
-        sentence = sents[i]
-        seed = CCGSeed()
-        seed.id = i
-        seed.sentence.extend(sentence)
-        seed.cat_probs.values.extend(cat_probs.flatten().astype(float).tolist())
-        seed.cat_probs.shape.extend(list(cat_probs.shape))
-        seed.dep_probs.values.extend(dep_probs.flatten().astype(float).tolist())
-        seed.dep_probs.shape.extend(list(dep_probs.shape))
-        seeds[i] = seed
-    seeds = CCGSeeds(lang="en", categories=categories, seeds=seeds)
-    return seeds
+def on_other_thread(socket, args):
+    msg = recv_msg(socket)
+    sentences = msg.decode("utf-8").split("\n")
+    sentences = [i.split(" ") for i in sentences]
+    res = run(sentences, *args)
+    res = res.SerializeToString()
+    log('sending')
+    send_msg(socket, res)
+    socket.close()
+    log('done')
 
 
 parser = argparse.ArgumentParser("LSTM supertag tagger")
@@ -76,38 +74,34 @@ parser.add_argument("--batchsize", type=int,
         default=32, help="batch size")
 parser.add_argument("--filename", type=str,
         default="/tmp/tagging_server", help="unix domain socket")
+parser.add_argument("--annotator", default=None,
+        choices=['spacy', 'candc'], help="add pos, lemma and entity layers")
+parser.add_argument("--daemon", action="store_true")
 args = parser.parse_args()
 
 
-with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
-    s.bind(args.filename)
+try:
+    with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as s:
+        s.bind(args.filename)
 
-    daemonize()
+        if args.daemon:
+            daemonize()
 
-    model = os.path.join(args.path, "tagger_model")
-    tagger = FastBiaffineLSTMParser(args.path)
+        tagger = load_tagger(args.path)
 
-    if os.path.exists(model):
-        chainer.serializers.load_npz(model, tagger)
-    else:
-        sys.exit("Not found: %s" % model)
+        if args.annotator is not None:
+            annotator = annotators[args.annotator]()
+        else:
+            annotator = None
 
-    while True:
-        log('listening')
-        s.listen(5)
-        c, addr = s.accept()
-        log('receiving')
-        msg = recv_msg(c)
-        log(b"received:" + msg)
-        sents = [s.split(' ') for s in msg.decode("utf-8").split('|')]
-        res = tagger.predict_doc(sents, args.batchsize)
-        seeds = create_seeds(sents, res, tagger.cats)
+        model_args = (None, annotator, tagger, args.batchsize)
+
         while True:
-            log('sending')
-            try:
-                send_msg(c, seeds.SerializeToString())
-            except:
-                break
-            sleep(1)
-        c.close()
-
+            log('listening')
+            s.listen(5)
+            c, addr = s.accept()
+            log('receiving')
+            multiprocessing.Process(
+                    target=on_other_thread, args=(c, model_args)).start()
+except KeyboardInterrupt:
+    os.unlink(args.filename)

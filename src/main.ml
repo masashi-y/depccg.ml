@@ -17,20 +17,22 @@ module JaLoader = Reader.JapaneseLoader
 
 
 
-let paths = ref []
-and nbest = ref 1
-and beta  = ref 0.00000001
-and out   = ref "auto"
-and lang  = ref "en"
+let paths  = ref []
+and nbest  = ref 1
+and beta   = ref 0.00000001
+and out    = ref "auto"
+and lang   = ref "en"
+and socket = ref None
 
 let spec = 
     [("-nbest",  Arg.Set_int nbest,   "output nbest parses")
     ;("-beta",   Arg.Set_float beta,  "beta value for pruning")
     ;("-format", Arg.Set_string out,  "beta value for pruning")
     ;("-lang",   Arg.Set_string lang, "language [en, ja]")
+    ;("-socket", Arg.String (fun s -> socket := Some s), "use socket to contact with tagger")
     ]
 
-let usage = !%"\n%sUsage: thorn [-nbest] [-beta] [-format] [-lang] model seeds"
+let usage = !%"\n%sUsage: thorn [-nbest] [-beta] [-format] [-lang] input model"
             EnPrinter.(show_derivation sample_tree)
 
 let valid_format s = List.mem s ["auto"; "deriv"; "html"; "ptb"; "prolog"; "htmls"]
@@ -65,7 +67,9 @@ let try_load name f =
 
 (* main function for English parsing *)
 let main_en model seeds =
-    let ss = EnLoader.read_ccgseeds seeds in
+    let ss = EnLoader.(match !socket with
+        | Some s -> read_ccgseeds_socket s
+        | None -> read_ccgseeds) seeds in
     let cat_list = Utils.enumerate (List.map EnCat.parse ss.categories)
     and n_cats = (List.length ss.categories)
     and unary_rules = EnLoader.read_unary_rules (model </> "unary_rules.txt") in

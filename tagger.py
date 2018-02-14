@@ -13,15 +13,6 @@ import subprocess
 def log(str):
     print("[tagger] %s" % str, file=sys.stderr)
 
-parser = argparse.ArgumentParser("LSTM supertag tagger")
-parser.add_argument("path", help="path to model directory")
-parser.add_argument("--out", default="ccg.seed", help="output file path")
-parser.add_argument("--batchsize", type=int, default=16, help="batch size")
-parser.add_argument("--annotator", default=None,
-        choices=['spacy', 'candc'], help="add pos, lemma and entity layers")
-args = parser.parse_args()
-
-
 class Annotator(object):
     def lemma(self, i):
         return self.lemmas[i]
@@ -104,46 +95,66 @@ annotators = {
     'candc' : CAndCAnnotator
 }
 
-if args.annotator is not None:
-    annotator = annotators[args.annotator]()
-else:
-    annotator = None
 
-model = os.path.join(args.path, "tagger_model")
-with open(os.path.join(args.path, "tagger_defs.txt")) as f:
-    tagger = eval(json.load(f)["model"])(args.path)
+def run(sentences, names, annotator, tagger, batchsize):
+    log("tagging")
+    res = tagger.predict_doc(sentences, batchsize)
+    log("done")
+    seeds = [None for _ in range(len(sentences))]
+    for (i, _, (cat_probs, dep_probs)) in res:
+        sentence = sentences[i]
+        seed = CCGSeed()
+        seed.id = str(i) if names is None else names[i]
+        seed.sentence.extend(sentence)
+        seed.cat_probs.values.extend(cat_probs.flatten().astype(float).tolist())
+        seed.cat_probs.shape.extend(list(cat_probs.shape))
+        seed.dep_probs.values.extend(dep_probs.flatten().astype(float).tolist())
+        seed.dep_probs.shape.extend(list(dep_probs.shape))
+        if annotator is not None:
+            seed.attribs.extend(annotate_one(annotator, sentence))
+        seeds[i] = seed
+    seeds = CCGSeeds(lang="en", categories=tagger.cats, seeds=seeds)
+    return seeds
 
-if os.path.exists(model):
-    chainer.serializers.load_npz(model, tagger)
-else:
-    sys.exit("Not found: %s" % model)
 
-log("tagging")
-inputs = [i.strip() for i in sys.stdin]
-if len(inputs[0].split("\t")) > 1:
-    names, sentences = zip(*[i.split("\t") for i in inputs])
-    sentences = [i.split(" ") for i in sentences]
-else:
-    sentences = [i.split(" ") for i in inputs]
-    names = None
-res = tagger.predict_doc(sentences, args.batchsize)
-log("done")
-log("writing results to : %s" % args.out)
-seeds = [None for _ in range(len(sentences))]
-for (i, _, (cat_probs, dep_probs)) in res:
-    sentence = sentences[i]
-    seed = CCGSeed()
-    seed.id = str(i) if names is None else names[i]
-    seed.sentence.extend(sentence)
-    seed.cat_probs.values.extend(cat_probs.flatten().astype(float).tolist())
-    seed.cat_probs.shape.extend(list(cat_probs.shape))
-    seed.dep_probs.values.extend(dep_probs.flatten().astype(float).tolist())
-    seed.dep_probs.shape.extend(list(dep_probs.shape))
-    if annotator is not None:
-        seed.attribs.extend(annotate_one(annotator, sentence))
-    seeds[i] = seed
-seeds = CCGSeeds(lang="en", categories=tagger.cats, seeds=seeds)
+def load_tagger(filepath):
+    model = os.path.join(filepath, "tagger_model")
+    with open(os.path.join(filepath, "tagger_defs.txt")) as f:
+        tagger = eval(json.load(f)["model"])(filepath)
 
-with open(args.out, "wb") as f:
-    f.write(seeds.SerializeToString())
-log("done")
+    if os.path.exists(model):
+        chainer.serializers.load_npz(model, tagger)
+    else:
+        sys.exit("Not found: %s" % model)
+    return tagger
+
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser("LSTM supertag tagger")
+    parser.add_argument("path", help="path to model directory")
+    parser.add_argument("--out", default="ccg.seed", help="output file path")
+    parser.add_argument("--batchsize", type=int, default=16, help="batch size")
+    parser.add_argument("--annotator", default=None,
+            choices=['spacy', 'candc'], help="add pos, lemma and entity layers")
+    args = parser.parse_args()
+
+    inputs = [i.strip() for i in sys.stdin]
+    if len(inputs[0].split("\t")) > 1:
+        names, sentences = zip(*[i.split("\t") for i in inputs])
+        sentences = [i.split(" ") for i in sentences]
+    else:
+        sentences = [i.split(" ") for i in inputs]
+        names = None
+
+    tagger = load_tagger(args.path)
+    if args.annotator is not None:
+        annotator = annotators[args.annotator]()
+    else:
+        annotator = None
+
+    seeds = run(
+            sentences, names, annotator, tagger, args.batchsize)
+
+    log("writing results to : %s" % args.out)
+    with open(args.out, "wb") as f:
+        f.write(seeds.SerializeToString())
+    log("done")
