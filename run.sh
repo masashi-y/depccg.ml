@@ -2,7 +2,8 @@
 
 PROGNAME=$0
 TAGGER="python tagger.py"
-THORN="src/thorn.opt"
+# THORN="src/thorn.opt"
+THORN="jbuilder exec src/main.exe --"
 
 FORMAT=deriv
 MODEL=models/tri_headfirst
