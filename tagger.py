@@ -28,6 +28,7 @@ class Annotator(object):
 
 
 candc_cmd = "echo \"{0}\" | {1}/bin/pos --model {1}/models/pos | {1}/bin/ner --model {1}/models/ner"
+morpha_cmd = "echo \"{0}\" | java -jar lemmatizer/stemmer.jar"
 
 class CAndCAnnotator(Annotator):
     def __init__(self):
@@ -52,7 +53,18 @@ class CAndCAnnotator(Annotator):
         _, self.tags, self.entities = \
             zip(*[t.split('|') for t in res.strip().split(" ")])
         preds = self.nlp(sentence)
-        self.lemmas = [x.lemma_ for x in preds]
+
+        # use morpha stemmer
+        command = morpha_cmd.format(sentence)
+        proc = subprocess.Popen(command,
+                        shell  = True,
+                        stdin  = subprocess.PIPE,
+                        stdout = subprocess.PIPE,
+                        stderr = subprocess.PIPE)
+
+        res, _ = proc.communicate() 
+        res = res.decode('utf-8')
+        self.lemmas = [x for x in res.strip().split(" ")]
 
 
 class SpacyAnnotator(Annotator):

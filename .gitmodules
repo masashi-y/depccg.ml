@@ -1,0 +1,3 @@
+[submodule "symmetrical-octo-broccoli"]
+	path = symmetrical-octo-broccoli
+	url = https://github.com/masashi-y/symmetrical-octo-broccoli.git
