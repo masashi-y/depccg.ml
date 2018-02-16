@@ -272,14 +272,14 @@ module EnglishPrinter = struct
             in f
 
         let show_rule = function
-            | `FwdApp        -> "fa"
-            | `BwdApp        -> "ba"
-            | `FwdCmp        -> "fc"
-            | `BwdCmp        -> "bxc"
-            | `GenFwdCmp     -> "gfc"
-            | `GenBwdCmp     -> "gbx"
-            | `Conj          -> "conj"
-            | `RP            -> "rp"
+            | `FwdApp    -> "fa"
+            | `BwdApp    -> "ba"
+            | `FwdCmp    -> "fc"
+            | `BwdCmp    -> "bxc"
+            | `GenFwdCmp -> "gfc"
+            | `GenBwdCmp -> "gbx"
+            | `Conj      -> "conj"
+            | `RP        -> "rp"
             | _  -> invalid_arg "Not supported combinatory rule"
 
         let get_arg = function

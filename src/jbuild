@@ -4,6 +4,6 @@
 (executable (
     (name main)
     (preprocess (pps (ppx_monadic)))
-    (libraries (str psq ocaml-protoc ppx_monadic unix yaml))
+    (libraries (str psq ocaml-protoc ppx_monadic unix yaml logic))
 ))
 
