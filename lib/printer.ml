@@ -363,7 +363,7 @@ module EnglishPrinter = struct
                         return (!%"<rule type=\"%s\" cat=\"%s\">\n%s\n</rule>"
                         rule_type (Cat.show cat) (String.concat "\n" children))
             )
-            in StateM.eval (f tree) (1, attr)
+            in StateM.eval (f tree) (0, attr)
     end
 
         let show_xml_trees attribs tss =
