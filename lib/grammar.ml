@@ -273,7 +273,7 @@ struct
             | _, `N _  -> []
             | `Punct x, y when List.mem x puncts
                          && not (is_punct y)
-                         && not (is_type_raised y) -> [y |: y]
+                         (* && not (is_type_raised y) *) -> [y |: y]
             | _ -> [] 
         in
         let conj2 = function
