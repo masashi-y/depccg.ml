@@ -24,3 +24,6 @@ type t = Attribute.t list
 
 let from_protobuf s = s.S.attribs
 
+let default t = (* TODO *)
+    let length = List.length (Grammar.EnglishGrammar.Tree.terminals t) in
+    list_init length ~f:(fun _ -> Attribute.default ())

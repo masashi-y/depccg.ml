@@ -18,14 +18,6 @@ struct
     open Grammar
     open Tree
 
-    let rec terminals = function
-        | {str=""; children} -> List.flatten (List.map terminals children)
-        | {str=s} -> [s]
-
-    let rec preterminals = function
-        | {cat; children=[]} -> [cat]
-        | {children} -> List.flatten (List.map preterminals children)
-
     let rec show_tree = function
         | {cat; str; children=[]}
             -> let c' = Cat.show cat in

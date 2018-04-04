@@ -1,3 +1,4 @@
+open Unix
 
 let (</>) = Filename.concat
 
@@ -6,6 +7,34 @@ let p = Printf.printf
 let pr = print_endline
 
 let (!%) = Printf.sprintf
+
+let list_init n ~f =
+    if n < 0 then raise (Invalid_argument "list_init");
+    let rec aux i accum =
+        if i = 0 then accum
+        else aux (i-1) (f (i-1) :: accum) in
+    aux n []
+
+let walk_directory_tree dir pattern =
+    let re = Str.regexp pattern in
+    let select str = Str.string_match re str 0 in
+    let rec walk acc = function
+    | [] -> acc
+    | dir::tail ->
+        let contents = Array.to_list (Sys.readdir dir) in
+        let contents = List.rev_map (Filename.concat dir) contents in
+        let dirs, files =
+            List.fold_left (fun (dirs,files) f ->
+                match (stat f).st_kind with
+                | S_REG -> (dirs, f::files)
+                | S_DIR -> (f::dirs, files)
+                | _ -> (dirs, files)
+            ) ([],[]) contents
+        in
+        let matched = List.filter (select) files in
+        walk (matched @ acc) (dirs @ tail)
+    in
+    walk [] [dir]
 
 let read_lines file =
     let ch = open_in file in

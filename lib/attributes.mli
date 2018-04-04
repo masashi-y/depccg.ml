@@ -19,3 +19,4 @@ type t = Attribute.t list
 
 val from_protobuf : Ccg_seed_types.ccgseed -> t
 
+val default : Grammar.EnglishGrammar.Tree.t -> t

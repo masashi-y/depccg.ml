@@ -5,15 +5,19 @@ type ('a, 'b) cell = Empty
 
 type index = int * int -> int
 
-type ('a, 'b) t = {cells  : ('a, 'b) cell array;
-                   index  : index;
-                   length : int;
-                   nbest  : int}
+type ('a, 'b) t = {
+    cells  : ('a, 'b) cell array;
+    index  : index;
+    length : int;
+    nbest  : int
+}
 
-let make n nbest = {cells  = Array.make (n * n) Empty;
-                    index  = (fun (i, j) -> i * n + j);
-                    length = n;
-                    nbest  = nbest}
+let make n nbest = {
+    cells  = Array.make (n * n) Empty;
+    index  = (fun (i, j) -> i * n + j);
+    length = n;
+    nbest  = nbest
+}
 
 let update {cells; index; nbest} i k v =
     let update_with_check cell =
@@ -44,8 +48,8 @@ let iter_along g {cells; index; length} i f =
         | Filled cell -> Hashtbl.iter f cell; iter (j+1)
     in iter 0
 
-let row = (fun i j -> (i, j))
-and column = (fun i j -> (j, i))
+let row i j = (i, j)
+and column i j = (j, i)
 
 let iter_along_row c = iter_along row c
 and iter_along_col c = iter_along column c

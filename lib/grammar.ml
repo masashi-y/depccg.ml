@@ -1,9 +1,7 @@
 
-(* open Cat.EnglishCategories *)
 open Cat
 open Feat
 open Utils
-(* open Cell *)
 
 module type RULES =
 sig
@@ -29,6 +27,8 @@ sig
     val make : cat:cat -> op:op -> children:(t list) -> t
     val terminal : cat -> string -> t
     val make_scored : ?score:float -> t -> scored
+    val terminals : t -> string list
+    val preterminals : t -> cat list
 end
 
 module Tree (Cat : CATEGORIES) (Rules : RULES) = 
@@ -50,6 +50,14 @@ struct
         {cat=cat; op=Rules.intro; children=[]; str=s}
 
     let make_scored ?(score=0.0) t = [(score, t)]
+
+    let rec terminals = function
+        | {str=""; children} -> List.flatten (List.map terminals children)
+        | {str=s} -> [s]
+
+    let rec preterminals = function
+        | {cat; children=[]} -> [cat]
+        | {children} -> List.flatten (List.map preterminals children)
 end
 
 
@@ -215,16 +223,16 @@ struct
     module Rules = struct
         type t = rules
 
-        let to_list = [`FwdApp
-                      ; `BwdApp
-                      ; `FwdCmp
-                      ; `BwdCmp
-                      ; `GenFwdCmp
-                      ; `GenBwdCmp
-                      ; `Conj
-                      ; `RP
-                      ; `CommaVPtoADV
-                      ; `ParentDirect]
+        let to_list = [`FwdApp;
+                       `BwdApp;
+                       `FwdCmp;
+                       `BwdCmp;
+                       `GenFwdCmp;
+                       `GenBwdCmp;
+                       `Conj;
+                       `RP;
+                       `CommaVPtoADV;
+                       `ParentDirect]
 
         let intro = `Intro
         let unary = `Unary
@@ -245,11 +253,11 @@ struct
 
     open Cat
 
-    let possible_root_cats = [ `S `DCL
-                             ; `S `WQ
-                             ; `S `Q
-                             ; `S `QEM
-                             ; `NP `None]
+    let possible_root_cats = [`S `DCL;
+                              `S `WQ;
+                              `S `Q;
+                              `S `QEM;
+                              `NP `None]
 
 
     (* S[dcl] S[em]\S[em] --> S[em] *)
@@ -351,17 +359,17 @@ struct
 
         type t = rules
 
-        let to_list = [`FwdApp
-                      ; `BwdApp
-                      ; `FwdCmp
-                      ; `BwdCmp
-                      ; `GenBwdCmp2
-                      ; `GenBwdCmp3
-                      ; `GenBwdCmp4
-                      ; `CrsFwdCmp1
-                      ; `CrsFwdCmp2
-                      ; `CrsFwdCmp3
-                      ; `Conj]
+        let to_list = [`FwdApp;
+                       `BwdApp;
+                       `FwdCmp;
+                       `BwdCmp;
+                       `GenBwdCmp2;
+                       `GenBwdCmp3;
+                       `GenBwdCmp4;
+                       `CrsFwdCmp1;
+                       `CrsFwdCmp2;
+                       `CrsFwdCmp3;
+                       `Conj]
 
         let intro = `Intro
         let unary = `Unary
@@ -383,22 +391,22 @@ struct
     open Cat
 
     let possible_root_cats =
-        [ `NP (`NPf (`NC, `NM, `F))
-        ; `NP (`NPf (`NC, `NM, `T))
-        ; `S  (`Sf (`NM, `ATTR, `T))
-        ; `S  (`Sf (`NM, `BASE, `F))
-        ; `S  (`Sf (`NM, `BASE, `T))
-        ; `S  (`Sf (`NM, `CONT, `F))
-        ; `S  (`Sf (`NM, `CONT, `T))
-        ; `S  (`Sf (`NM, `DA,   `F))
-        ; `S  (`Sf (`NM, `DA,   `T))
-        ; `S  (`Sf (`NM, `HYP,  `T))
-        ; `S  (`Sf (`NM, `IMP,  `F))
-        ; `S  (`Sf (`NM, `IMP,  `T))
-        ; `S  (`Sf (`NM, `R,    `T))
-        ; `S  (`Sf (`NM, `S,    `T))
-        ; `S  (`Sf (`NM, `STEM, `F))
-        ; `S  (`Sf (`NM, `STEM, `T)) ]
+        [`NP (`NPf (`NC, `NM, `F));
+         `NP (`NPf (`NC, `NM, `T));
+         `S  (`Sf (`NM, `ATTR, `T));
+         `S  (`Sf (`NM, `BASE, `F));
+         `S  (`Sf (`NM, `BASE, `T));
+         `S  (`Sf (`NM, `CONT, `F));
+         `S  (`Sf (`NM, `CONT, `T));
+         `S  (`Sf (`NM, `DA,   `F));
+         `S  (`Sf (`NM, `DA,   `T));
+         `S  (`Sf (`NM, `HYP,  `T));
+         `S  (`Sf (`NM, `IMP,  `F));
+         `S  (`Sf (`NM, `IMP,  `T));
+         `S  (`Sf (`NM, `R,    `T));
+         `S  (`Sf (`NM, `S,    `T));
+         `S  (`Sf (`NM, `STEM, `F));
+         `S  (`Sf (`NM, `STEM, `T)) ]
 
     let conjoin = function
         | x, y when List.mem x possible_root_cats
