@@ -9,12 +9,17 @@ module EnAstarParser = Astar.MakeAStarParser (EnGrammar)
 module EnPrinter = Printer.EnglishPrinter
 module EnLoader = Reader.EnglishLoader
 
-let dirs = ref []
-and out  = ref "auto"
+let parse_format s =
+    if List.mem s ["auto"; "deriv"; "html"; "ptb"; "prolog"; "htmls"; "translation"]
+    then s else raise (Invalid_argument s)
+   
 
-let spec = [("-format", Arg.Set_string out,  "beta value for pruning")]
+type cfg = {
+    format : string [@short "-f"] [@parse parse_format]
+        (** output format: [auto, deriv, html, ptb, prolog, htmls, translation] *)
+} [@@deriving argparse { positional =
+    ["dirs ...", "directories to traverse"] }] 
 
-let valid_format s = List.mem s ["auto"; "deriv"; "html"; "ptb"; "prolog"; "htmls"; "translation"]
 
 let make_translations =
     let f = function
@@ -29,20 +34,17 @@ let write_all out names attribs parses = match out with
     | "translation" -> make_translations parses
     | out -> EnPrinter.output_results out names attribs parses
 
-let usage = !%"\n%sUsage: ccgbank [-f format] [dir ...]"
-            EnPrinter.(show_derivation sample_tree)
-
-let main dir =
+let main out dir =
     let paths = Utils.walk_directory_tree dir ".*\\.auto" in
     let names, parses = List.fold_right (fun p (names, parses) ->
         let name, parse = Reader.CCGBank.parse_file p in
         (name @ names, parse @ parses)) paths ([], []) in
     let attribs = List.map Attributes.default parses in
-    write_all !out names attribs
+    write_all out names attribs
     (List.map EnGrammar.Tree.make_scored parses)
 
 let () =
-    let () = Arg.parse spec (fun s -> dirs := s :: !dirs) usage in
-    if List.length !dirs = 0 || not (valid_format !out)
-        then (Arg.usage spec usage; exit 1)
-    else List.iter main (List.rev !dirs)
+    let { format }, dirs = argparse_cfg { format = "auto" } "ccgbank" Sys.argv in
+    (try ignore (parse_format format)
+    with _ -> prerr_cfg_argparse "ccgbank" { format }; exit 1);
+    List.iter (main format) (Array.to_list dirs)

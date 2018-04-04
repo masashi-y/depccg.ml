@@ -1,6 +1,0 @@
-USE_OCAMLFIND = true
-
-NATIVE_ENABLED = true
-BYTE_ENABLED = false
-
-.SUBDIRS : src
