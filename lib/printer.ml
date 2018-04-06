@@ -12,6 +12,25 @@ struct
                 return (i, x))
 end
 
+module type PRINTER =
+   functor (Grammar : GRAMMAR) ->
+sig
+    open Grammar
+    val show_tree : Tree.t -> string
+
+    val show_ptb : int -> Tree.t -> string
+
+    val show_derivation : Tree.t -> string
+
+    val show_html_trees : Tree.scored list -> string
+
+    val show_html_trees_separated : string option list -> Tree.scored list -> unit
+
+    val sample_tree : Tree.t
+
+    val output_results : string -> string option list -> Tree.scored list -> unit
+end
+
 module ParsePrinter (Grammar : GRAMMAR) =
 struct
 

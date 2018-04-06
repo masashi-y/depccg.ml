@@ -25,6 +25,34 @@ and out    = ref "auto"
 and lang   = ref "en"
 and socket = ref None
 
+type cfg = {
+    nbest : int;           [@short "-n"]
+        (** output nbest parses *)
+
+    beta : float;          [@short "-b"]
+        (** beta value for pruning *)
+
+    format : string;       [@short "-f"]
+        (** output format: [auto, deriv, html, ptb, prolog, htmls] *)
+
+    lang : string;         [@short "-l"]
+        (** language [en, ja] *)
+
+    socket : string option [@short "-S"]
+        (** use socket to contact with tagger *)
+
+} [@@deriving argparse { positional =
+    ["input", "input file (seed file (*.seeds)";
+     "model", "path to model directory"] }]
+
+let default = ref {
+    nbest = 1;
+    beta = 0.00000001;
+    format = "auto";
+    lang = "en";
+    socket = None
+}
+
 let spec = 
     [("-nbest",  Arg.Set_int nbest,   "output nbest parses")
     ;("-beta",   Arg.Set_float beta,  "beta value for pruning")

@@ -2,16 +2,29 @@
 open Utils
 open Cat
 
-(*
-module type CATEGORIES =
+type file = string
+
+module type LOADER =
 sig
-    type t
-    val parse : string -> t
+    type cat
+
+    val read_ccgseeds : file -> Ccg_seed_types.ccgseeds
+
+    val read_ccgseeds_socket : file -> file -> Ccg_seed_types.ccgseeds
+
+    val read_cats : file -> cat list
+
+    val read_unary_rules : file -> (cat, cat) Hashtbl.t
+
+    val read_cat_dict : string list -> file -> (string, bool array) Hashtbl.t
+
+    val read_binary_rules : file -> (cat * cat, bool) Hashtbl.t
 end
-*)
 
 module Loader (Cat : CATEGORIES) =
 struct
+    type cat = Cat.t
+
     let read_ccgseeds file =
         let bytes = 
             let ic = open_in file in 
@@ -91,6 +104,8 @@ struct
 end
 
 module JapaneseLoader = Loader (JapaneseCategories)
+
+type matrix = float Matrix.t
 
 let read_proto_matrix n_cats = 
     let open Ccg_seed_types in
