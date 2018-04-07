@@ -17,8 +17,10 @@ let parse_format s =
 type cfg = {
     format : string [@short "-f"] [@parse parse_format]
         (** output format: [auto, deriv, html, ptb, prolog, htmls, translation] *)
-} [@@deriving argparse { positional =
-    ["dirs ...", "directories to traverse"] }] 
+} [@@deriving argparse {
+    positional = ["dirs ...", "directories to traverse"];
+    description = "parse CCGBank and output formatted trees"
+}] 
 
 
 let make_translations =
@@ -45,6 +47,4 @@ let main out dir =
 
 let () =
     let { format }, dirs = argparse_cfg { format = "auto" } "ccgbank" Sys.argv in
-    (try ignore (parse_format format)
-    with _ -> prerr_cfg_argparse "ccgbank" { format }; exit 1);
     List.iter (main format) (Array.to_list dirs)

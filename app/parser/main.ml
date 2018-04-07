@@ -17,13 +17,9 @@ module JaPrinter = Printer.ParsePrinter (JaGrammar)
 module JaLoader = Reader.JapaneseLoader
 
 
-
-let paths  = ref []
-and nbest  = ref 1
-and beta   = ref 0.00000001
-and out    = ref "auto"
-and lang   = ref "en"
-and socket = ref None
+let parse_format s =
+    if List.mem s ["auto"; "deriv"; "html"; "ptb"; "prolog"; "htmls"]
+    then s else raise (Invalid_argument s)
 
 type cfg = {
     nbest : int;           [@short "-n"]
@@ -32,39 +28,29 @@ type cfg = {
     beta : float;          [@short "-b"]
         (** beta value for pruning *)
 
-    format : string;       [@short "-f"]
+    format : string;       [@short "-f"] [@parse parse_format]
         (** output format: [auto, deriv, html, ptb, prolog, htmls] *)
 
     lang : string;         [@short "-l"]
         (** language [en, ja] *)
 
-    socket : string option [@short "-S"]
+    socket : string option;[@short "-S"]
         (** use socket to contact with tagger *)
 
+    ncores : int           [@short "-c"]
+        (** the number of cores to parallelize A* decoders *)
 } [@@deriving argparse { positional =
     ["input", "input file (seed file (*.seeds)";
      "model", "path to model directory"] }]
 
-let default = ref {
+let default = {
     nbest = 1;
     beta = 0.00000001;
     format = "auto";
     lang = "en";
-    socket = None
+    socket = None;
+    ncores = 4;
 }
-
-let spec = 
-    [("-nbest",  Arg.Set_int nbest,   "output nbest parses")
-    ;("-beta",   Arg.Set_float beta,  "beta value for pruning")
-    ;("-format", Arg.Set_string out,  "beta value for pruning")
-    ;("-lang",   Arg.Set_string lang, "language [en, ja]")
-    ;("-socket", Arg.String (fun s -> socket := Some s), "use socket to contact with tagger")
-    ]
-
-let usage = !%"\n%sUsage: thorn [-nbest] [-beta] [-format] [-lang] input model"
-            EnPrinter.(show_derivation sample_tree)
-
-let valid_format s = List.mem s ["auto"; "deriv"; "html"; "ptb"; "prolog"; "htmls"]
 
 let status =
 "[parser] Camelthorn CCG Parser\n"              ^^
@@ -75,15 +61,17 @@ let status =
 "[parser] category dictionary size:\t%i\n"      ^^
 "[parser] nbest:\t%i\n"                         ^^
 "[parser] beta:\t%e\n"                          ^^
-"[parser] output format:\t%s\n"
+"[parser] output format:\t%s\n"                 ^^
+"[parser] the number of cores:\t%d\n"
 
-let progress_map ~f lst =
+let progress_map ncores ~f lst =
     let size = List.length lst in
     let f' i x = let y = f x in
         Printf.eprintf "\b\r[parser] %i/%i" (i+1) size;
         flush stderr;
         y
-    in let res = List.mapi f' lst in
+    in let res = Parmap.(parmapi ~ncores f' (L lst)) in
+    (* in let res = List.mapi f' lst in *)
     Printf.eprintf "\b\r[parser] done         \n";
     res
 
@@ -95,8 +83,8 @@ let try_load name f =
         (None, 0)
 
 (* main function for English parsing *)
-let main_en model seeds =
-    let ss = EnLoader.(match !socket with
+let main_en {socket; nbest; beta; format; ncores} model seeds =
+    let ss = EnLoader.(match socket with
         | Some s -> read_ccgseeds_socket s
         | None -> read_ccgseeds) seeds in
     let cat_list = Utils.enumerate (List.map EnCat.parse ss.categories)
@@ -108,21 +96,21 @@ let main_en model seeds =
         try_load "cat dict" (fun () -> EnLoader.read_cat_dict ss.categories (model </> "cat_dict.txt")) in
     Printf.eprintf status (List.length ss.seeds)
             n_cats (Hashtbl.length unary_rules)
-            seen_rules_size cat_dict_size !nbest !beta !out;
+            seen_rules_size cat_dict_size nbest beta format ncores;
     flush stderr;
     let t = Sys.time () in
     let attribs = List.map Attributes.from_protobuf ss.seeds in
     let names = List.map (fun s -> s.id) ss.seeds in
-    let res = progress_map ss.seeds
+    let res = progress_map ncores ss.seeds
             ~f:(fun s -> EnAstarParser.parse (Reader.read_proto_matrix n_cats s)
             ~cat_list ~unary_rules ~seen_rules ~cat_dict
-            ~nbest:(!nbest) ~beta:(!beta) ~unary_penalty:0.1 ()) in
+            ~nbest ~beta ~unary_penalty:0.1 ()) in
     Printf.eprintf "\nExecution time: %fs\n" (Sys.time() -. t);
-    EnPrinter.output_results !out names attribs res
+    EnPrinter.output_results format names attribs res
 
 
 (* main function for Japanese parsing *)
-let main_ja model seeds =
+let main_ja {nbest; beta; format; ncores} model seeds =
     let ss = JaLoader.read_ccgseeds seeds in
     let cat_list = Utils.enumerate (List.map JaCat.parse ss.categories)
     and n_cats = (List.length ss.categories)
@@ -131,25 +119,25 @@ let main_ja model seeds =
         try_load "seen rules" (fun () -> JaLoader.read_binary_rules (model </> "seen_rules.txt")) in
     Printf.eprintf status (List.length ss.seeds)
             n_cats (Hashtbl.length unary_rules)
-            seen_rules_size 0 !nbest !beta !out;
+            seen_rules_size 0 nbest beta format ncores;
     flush stderr;
     let t = Sys.time () in
     let names = List.map (fun s -> s.id) ss.seeds in
-    let res = progress_map ss.seeds
+    let res = progress_map ncores ss.seeds
             ~f:(fun s -> JaAstarParser.parse (Reader.read_proto_matrix n_cats s)
             ~cat_list ~unary_rules ~seen_rules ~cat_dict:None
-            ~nbest:(!nbest) ~beta:(!beta) ~unary_penalty:0.1 ()) in
+            ~nbest ~beta ~unary_penalty:0.1 ()) in
     Printf.eprintf "\nExecution time: %fs\n" (Sys.time () -. t);
-    JaPrinter.output_results !out names res
+    JaPrinter.output_results format names res
 
 
 let () =
-    let () = Arg.parse spec (fun s -> paths := s :: !paths) usage in
-    let (model, seeds) = match !paths with
-        |[m; s] -> (m, s)
-        | _ -> Arg.usage spec usage; exit 1;
+    let ({ lang } as cfg), rest = argparse_cfg default "thorn" Sys.argv in
+    let (model, seeds) = match Array.to_list rest with
+        |[s; m] -> (m, s)
+        | _ -> prerr_cfg_argparse "thorn" default; exit 1;
     in
-    match !lang with
-    | "en" -> main_en model seeds
-    | "ja" -> main_ja model seeds
-    | _ -> failwith (!%"Not supported language option: %s\n" !lang)
+    match lang with
+    | "en" -> main_en cfg model seeds
+    | "ja" -> main_ja cfg model seeds
+    | _ -> failwith (!%"Not supported language option: %s\n" lang)

@@ -3,7 +3,7 @@
 
 (executable (
     (name main)
-    (preprocess (pps (ppx_monadic)))
-    (libraries (str psq ocaml-protoc ppx_monadic unix yaml logic thorn))
+    (preprocess (pps (ppx_deriving_argparse)))
+    (libraries (str psq ocaml-protoc ppx_monadic unix yaml logic thorn parmap))
 ))
 
