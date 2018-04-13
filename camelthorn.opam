@@ -19,6 +19,7 @@ depends: [
   "ppx_monadic"
   "parmap"
   "containers"
+  "menhir"
 ]
 
 available: [ ocaml-version >= "4.03.0" & opam-version >= "1.2" ]
