@@ -29,6 +29,7 @@ sig
     val make_scored : ?score:float -> t -> scored
     val terminals : t -> string list
     val preterminals : t -> cat list
+    val length : t -> int
 end
 
 module Tree (Cat : CATEGORIES) (Rules : RULES) = 
@@ -58,6 +59,8 @@ struct
     let rec preterminals = function
         | {cat; children=[]} -> [cat]
         | {children} -> List.flatten (List.map preterminals children)
+
+    let length t = List.length (terminals t)
 end
 
 

@@ -1,6 +1,7 @@
 
 open Grammar
 open Utils
+open Attributes
 
 module StateM =
 struct
@@ -16,7 +17,9 @@ module type PRINTER =
    functor (Grammar : GRAMMAR) ->
 sig
     open Grammar
-    val show_tree : Tree.t -> string
+    val show_tree : Attributes.t -> Tree.t -> string
+
+    val show_conll_like : Attributes.t -> Tree.t -> string
 
     val show_ptb : int -> Tree.t -> string
 
@@ -37,15 +40,32 @@ struct
     open Grammar
     open Tree
 
-    let rec show_tree = function
-        | {cat; str; children=[]}
-            -> let c' = Cat.show cat in
-               !%"(<L %s POS POS %s %s>)" c' str c'
-        | {cat; children}
-            -> let w = String.concat " " (List.map show_tree children) in
-               let n_child = List.length children in
-               let head_is_left = 0 in     (* do not care *)
-               !%"(<T %s %i %i> %s )" (Cat.show cat) head_is_left n_child w
+    let show_tree attrs tree =
+        let rec aux = StateM.(function
+            | {cat; str; children=[]}
+                -> pop () >>= fun attr ->
+                   let c' = Cat.show cat in
+                   let pos = Attribute.pos ~def:"POS" attr in
+                   return (!%"(<L %s %s %s %s %s>)" c' pos pos str c')
+            | {cat; children}
+                -> mapM aux children >>= fun cs ->
+                   let w = String.concat " " cs in
+                   let n_child = List.length children in
+                   let head_is_left = 0 in     (* do not care *)
+                   return (!%"(<T %s %i %i> %s )" (Cat.show cat) head_is_left n_child w)) in
+        StateM.eval (aux tree) attrs
+
+    let show_conll_like attrs tree =
+        let rec aux = StateM.(function
+            | {cat; str; children=[]}
+                -> pop' () >>= fun (i, attr) ->
+                   let cat = Cat.show cat in
+                   let pos = Attribute.pos ~def:"POS" attr in
+                   return (!%"%i\t%s\t_\t%s\t%s\t_\t_\t_\t_\t%s" i str pos pos cat)
+            | {cat; children}
+                -> mapM aux children >>= fun cs ->
+                   return (String.concat "\n" cs)) in
+        (StateM.eval (aux tree) (1, attrs)) ^ "\n"
 
     let is_terminal = function
         | {children=[]} -> true
@@ -72,7 +92,6 @@ struct
                    let (cs, ws) = terminal_string rest in
                    (space lcatlen ^ c ^ space rcatlen ^ cs,
                        space lwordlen ^ w ^ space rwordlen ^ ws)
-
         in let buf = Buffer.create 100 in
         let rec show lwidth = function
             | {cat; str; children=[]}
@@ -217,12 +236,16 @@ struct
                 ]
 
     let output_results fmt names res =
-        let f printfun i = function
-            | [] -> ()
-            | lst -> List.iter (fun (_, t) ->
-                     p "ID=%i\n%s\n" i (printfun t)) lst
-        in match fmt with
-        | "auto"  -> List.iteri (f show_tree) res
+        let f printfun i =
+            List.iter (fun (_, t) -> p "ID=%i\n%s\n" i (printfun t)) in
+        let g printfun i = function
+            | [] -> failwith "invalid argument in output_results"
+            | ((_, t) :: _) as lst ->
+                    let attrs = Attributes.default (Tree.length t) in
+                    List.iter (fun (_, t) -> p "ID=%i\n%s\n" i (printfun attrs t)) lst in
+        match fmt with
+        | "auto"  -> List.iteri (g show_tree) res
+        | "conll" -> List.iteri (g show_conll_like) res
         | "deriv" -> List.iteri (f show_derivation) res
         | "ptb"   -> List.iteri (f (show_ptb 0)) res
         | "html"  -> pr (show_html_trees res)
@@ -315,10 +338,10 @@ module EnglishPrinter = struct
                 let f' c = f (depth + 1) c in StateM.(function
                 | {cat; str; children=[]} -> do_;
                     att <-- pop ();
-                    let lemma = Option.get "X" (Attribute.lemma att) in
-                    let pos = Option.get "X" (Attribute.pos att) in
-                    let entity = Option.get "X" (Attribute.entity att) in
-                    let chunk = Option.get "X" (Attribute.chunk att) in
+                    let lemma = Attribute.lemma ~def:"X" att in
+                    let pos = Attribute.pos ~def:"X" att in
+                    let entity = Attribute.entity ~def:"X" att in
+                    let chunk = Attribute.chunk ~def:"X" att in
                     return (!% "%st(%s, '%s', '%s', '%s', '%s' '%s')"
                                indent (show_cat cat) (escape_str str)
                                (escape_str lemma) pos chunk entity)
@@ -370,9 +393,9 @@ module EnglishPrinter = struct
             let open Attributes in
             let rec f tree = StateM.(match tree with
                 | {cat; str; children=[]} -> pop' () >>= fun (start, att) ->
-                        let lemma = Option.get "X" (Attribute.lemma att) in
-                        let pos = Option.get "X" (Attribute.pos att) in
-                        let entity = Option.get "X" (Attribute.entity att) in
+                        let lemma = Attribute.lemma ~def:"X" att in
+                        let pos = Attribute.pos ~def:"X" att in
+                        let entity = Attribute.entity ~def:"X" att in
                         return (!%
                 "<lf start=\"%d\" span=\"1\" word=\"%s\" lemma=\"%s\" pos=\"%s\" entity=\"%s\" cat=\"%s\" />"
                     start (escape_html_simple str) (escape_html_simple lemma) pos entity (Cat.show cat))
@@ -410,12 +433,13 @@ module EnglishPrinter = struct
         in List.iteri f (List.combine attribs trees)
 
     let output_results fmt names attribs res =
-        let f printfun i = function
-            | [] -> ()
-            | lst -> List.iter (fun (_, t) ->
-                     p "ID=%i\n%s\n" i (printfun t)) lst
-        in match fmt with
-        | "auto"  -> List.iteri (f show_tree) res
+        let f printfun i =
+            List.iter (fun (_, t) -> p "ID=%i\n%s\n" i (printfun t)) in
+        let g printfun i attrs =
+            List.iter (fun (_, t) -> p "ID=%i\n%s\n" i (printfun attrs t)) in
+        match fmt with
+        | "auto"  -> CCList.iteri2 (g show_tree) attribs res
+        | "conll" -> CCList.iteri2 (g show_conll_like) attribs res
         | "deriv" -> List.iteri (f show_derivation) res
         | "ptb"   -> List.iteri (f (show_ptb 0)) res
         | "html"  -> pr (show_html_trees res)

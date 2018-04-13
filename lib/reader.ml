@@ -1,6 +1,7 @@
 
 open Utils
 open Cat
+open Attributes
 
 type file = string
 
@@ -117,14 +118,7 @@ let read_proto_matrix n_cats =
         -> (sentence, convert cat_probs, convert dep_probs)
 
 
-module CCGBank :
-sig
-    open Grammar
-    open EnglishGrammar
-    val parse_line : string -> Tree.t
-    val parse_file : string -> string option list * Tree.t list
-end =
-struct
+module CCGBank = struct
     open Grammar
     open EnglishGrammar
 
@@ -135,42 +129,42 @@ struct
 
     let parse_line str =
         let error () = invalid_arg (!%"failed to parse %s\n" str) in
-        let rec parse' stack = function
+        let rec parse' stack poss = function
             | [] -> begin match stack with
-               | [`Close x] -> x
+               | [`Close x] -> (List.rev poss), x
                | _ -> error ()
             end
             | "(" :: "L" :: cat :: pos :: _ :: word :: _ :: ")" :: rest
                 -> let n = Tree.terminal (Cat.parse cat) word in
-                   parse' (`Close n :: stack) rest
+                   parse' (`Close n :: stack) (Attribute.default ~pos () :: poss) rest
             | "(" :: "T" :: cat :: _ :: _ :: rest
                 -> let n children = Tree.make ~cat:(Cat.parse cat) ~op:`Intro ~children in
-                    parse' (`Open n :: stack) rest
+                    parse' (`Open n :: stack) poss rest
             | ")" :: rest -> begin match stack with
                 | `Close l2 :: `Close l1 :: `Open t :: ss
                     -> let n = t [l1; l2] in
-                       parse' (`Close n :: ss) rest
+                       parse' (`Close n :: ss) poss rest
                 | `Close l :: `Open t :: ss
                     -> let n = t [l] in
-                       parse' (`Close n :: ss) rest
+                       parse' (`Close n :: ss) poss rest
                 | _ -> error ()
             end
             | _ -> error () in
-        parse' [] (preprocess str)
+        parse' [] [] (preprocess str)
 
     let parse_file file =
-        let rec aux (names, parses) = function
-            | [] -> (names, parses)
+        let rec aux ((names, attrs, parses) as acc) = function
+            | [] -> acc
             | name :: line :: rest ->
                 Scanf.sscanf name "ID=%s@ " (fun name ->
-                    let names, parses = aux (names, parses) rest in
+                    let names, attrs, parses = aux acc rest in
                     let line = Str.(global_replace (regexp "\\[\\([a-z]+\\)\\]\\[[a-z]+\\]") "[\\1]" line) in
                     let line = Str.(global_replace (regexp ")\\[conj\\]") ")" line) in
-                    let parse = try parse_line line
+                    let attr, parse = try parse_line line
                         with Parse_error s -> invalid_arg (!%"%s :%s" name s) in
-                    (Some name :: names, parse :: parses))
+                    (Some name :: names, attr :: attrs, parse :: parses))
             | _ -> invalid_arg "CCGBank.parse_file"
-        in aux ([], []) (read_lines file)
+        in aux ([], [], []) (read_lines file)
 end
 
 (*

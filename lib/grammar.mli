@@ -32,6 +32,7 @@ sig
     val make_scored : ?score:float -> t -> scored
     val terminals : t -> string list
     val preterminals : t -> cat list
+    val length : t -> int
 end
 
 

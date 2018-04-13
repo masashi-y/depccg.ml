@@ -36,9 +36,9 @@ sig
 
     open EnglishGrammar
 
-    val parse_line : file -> Tree.t
+    val parse_line : file -> Attributes.t * Tree.t
 
     (* optionally output names for parses from e.g. ID=1 *)
-    val parse_file : file -> string option list * Tree.t list
+    val parse_file : file -> string option list * Attributes.t list * Tree.t list
 end
 

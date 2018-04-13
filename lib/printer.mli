@@ -6,7 +6,9 @@ module type PRINTER =
    functor (Grammar : GRAMMAR) ->
 sig
     open Grammar
-    val show_tree : Tree.t -> string
+    val show_tree : Attributes.t -> Tree.t -> string
+
+    val show_conll_like : Attributes.t -> Tree.t -> string
 
     val show_ptb : int -> Tree.t -> string
 
@@ -34,7 +36,9 @@ module EnglishPrinter : sig
         val show : Attributes.t -> Tree.t -> string
     end
 
-    val show_tree : Tree.t -> string
+    val show_tree : Attributes.t -> Tree.t -> string
+
+    val show_conll_like : Attributes.t -> Tree.t -> string
 
     val show_ptb : int -> Tree.t -> string
 

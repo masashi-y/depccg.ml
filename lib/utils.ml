@@ -22,7 +22,7 @@ let walk_directory_tree dir pattern =
     | [] -> acc
     | dir::tail ->
         let contents = Array.to_list (Sys.readdir dir) in
-        let contents = List.rev_map (Filename.concat dir) contents in
+        let contents = List.map (Filename.concat dir) contents in
         let dirs, files =
             List.fold_left (fun (dirs,files) f ->
                 match (stat f).st_kind with

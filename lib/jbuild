@@ -4,6 +4,6 @@
 (library (
     (name thorn)
     (preprocess (pps (ppx_monadic)))
-    (libraries (str psq ocaml-protoc ppx_monadic unix yaml logic))
+    (libraries (str psq ocaml-protoc ppx_monadic unix yaml logic containers))
 ))
 
