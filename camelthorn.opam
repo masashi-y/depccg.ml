@@ -8,7 +8,7 @@ bug-reports: "https://github.com/masashi-y/Camelthorn/issues"
 license: "MIT"
 dev-repo: "https://github.com/masashi-y/Camelthorn.git"
 build: [
-  "jbuilder" "build" "-p" "parser"
+  "jbuilder" "build" "-p" "camelthorn"
 ]
 depends: [
   "jbuilder"   {build}
