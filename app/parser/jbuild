@@ -3,7 +3,8 @@
 
 (executable (
     (name main)
+    (public_name camelthorn)
     (preprocess (pps (ppx_deriving_argparse)))
-    (libraries (str psq ocaml-protoc ppx_monadic unix yaml logic thorn parmap))
+    (libraries (str psq ocaml-protoc ppx_monadic unix logic thorn parmap))
 ))
 

@@ -44,9 +44,9 @@ struct
         let rec aux = StateM.(function
             | {cat; str; children=[]}
                 -> pop () >>= fun attr ->
-                   let c' = Cat.show cat in
+                   let cat = Cat.show cat in
                    let pos = Attribute.pos ~def:"POS" attr in
-                   return (!%"(<L %s %s %s %s %s>)" c' pos pos str c')
+                   return (!%"(<L %s %s %s %s %s>)" cat pos pos str cat)
             | {cat; children}
                 -> mapM aux children >>= fun cs ->
                    let w = String.concat " " cs in
@@ -120,11 +120,11 @@ struct
         mathsize='0.8' mathcolor='Purple'>%s</mi>
           </mrow></msub>"
         in
-        let add_feat c f = let res = !% cstr c in
-                           match Feature.show f with
-                               | "" -> res
-                               | s -> !% fstr res s
-        in
+        let add_feat c f =
+            let res = !% cstr c in
+             match Feature.show f with
+            | "" -> res
+            | s -> !% fstr res s in
         let rec show_html_cat = function
             | `S f  -> add_feat "S" f
             | `N f  -> add_feat "N" f
@@ -192,7 +192,7 @@ struct
         let f i (name, ts) =
             let res = show_html_trees [ts] in
             let fname = match name with
-                None -> !%"%d.html" i
+                | None -> !%"%d.html" i
                 | Some n -> new_fname 1 n (!%"%s.html" n) in
             write_file (dir </> fname) res;
             fname in
