@@ -12,18 +12,80 @@ from chainer import training, Variable
 from chainer.training import extensions
 from chainer.optimizer import WeightDecay, GradientClipping
 from chainer.dataset.convert import _concat_arrays
-from py.ccgbank import walk_autodir
-from py.japanese_ccg import JaCCGReader
 from collections import defaultdict, OrderedDict
+
 from py.py_utils import read_pretrained_embeddings, read_model_defs
-from py.tree import Leaf, Tree, get_leaves
 from py.biaffine import Biaffine, Bilinear
 from py.param import Param
 from py.fixed_length_n_step_lstm import FixedLengthNStepLSTM
 
-from py.lstm_parser_bi import IGNORE, log, TrainingDataCreator, \
-        FeatureExtractor, LSTMParserDataset, LSTMParserTriTrainDataset
+UNK = "*UNKNOWN*"
+OOR2 = "OOR2"
+OOR3 = "OOR3"
+OOR4 = "OOR4"
+START = "*START*"
+END = "*END*"
+IGNORE = -1
+MISS = -2
 
+def get_suffix(word):
+    return [word[-1],
+           word[-2:] if len(word) > 1 else OOR2,
+           word[-3:] if len(word) > 2 else OOR3,
+           word[-4:] if len(word) > 3 else OOR4]
+
+
+def get_prefix(word):
+    return [word[0],
+            word[:2] if len(word) > 1 else OOR2,
+            word[:3] if len(word) > 2 else OOR3,
+            word[:4] if len(word) > 3 else OOR4]
+
+
+def normalize(word):
+    if word == "-LRB-":
+        return "("
+    elif word == "-RRB-":
+        return ")"
+    elif word == "-LCB-":
+        return "("
+    elif word == "-RCB-":
+        return ")"
+    else:
+        return word
+
+
+class FeatureExtractor(object):
+    def __init__(self, model_path, length=False):
+        self.words = read_model_defs(model_path + "/words.txt")
+        self.suffixes = read_model_defs(model_path + "/suffixes.txt")
+        self.prefixes = read_model_defs(model_path + "/prefixes.txt")
+        self.unk_word = self.words[UNK]
+        self.start_word = self.words[START]
+        self.end_word = self.words[END]
+        self.unk_suf = self.suffixes[UNK]
+        self.unk_prf = self.prefixes[UNK]
+        self.start_pre = [[self.prefixes[START]] + [IGNORE] * 3]
+        self.start_suf = [[self.suffixes[START]] + [IGNORE] * 3]
+        self.end_pre = [[self.prefixes[END]] + [IGNORE] * 3]
+        self.end_suf = [[self.suffixes[END]] + [IGNORE] * 3]
+        self.length = length
+
+    def process(self, words):
+        """
+        words: list of unicode tokens
+        """
+        words = list(map(normalize, words))
+        w = np.array([self.start_word] + [self.words.get(
+            x.lower(), self.unk_word) for x in words] + [self.end_word], 'i')
+        s = np.asarray(self.start_suf + [[self.suffixes.get(
+            f, self.unk_suf) for f in get_suffix(x)] for x in words] + self.end_suf, 'i')
+        p = np.asarray(self.start_pre + [[self.prefixes.get(
+            f, self.unk_prf) for f in get_prefix(x)] for x in words] + self.end_pre, 'i')
+        if not self.length:
+            return w, s, p
+        else:
+            return w, s, p, w.shape[0]
 
 class Linear(L.Linear):
 

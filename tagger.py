@@ -1,3 +1,4 @@
+#!/usr/bin/python
 
 from ccg_seed_pb2 import *
 from py.lstm_parser_bi_fast import FastBiaffineLSTMParser
@@ -166,7 +167,7 @@ if __name__ == '__main__':
     seeds = run(
             sentences, names, annotator, tagger, args.batchsize)
 
-    log("writing results to : %s" % args.out)
+    # log("writing results to : %s" % args.out)
     with open(args.out, "wb") as f:
-        f.write(seeds.SerializeToString())
-    log("done")
+        sys.stdout.buffer.write(seeds.SerializeToString())
+    # log("done")

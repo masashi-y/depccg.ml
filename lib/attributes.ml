@@ -23,10 +23,38 @@ struct
         Ccg_seed_types.default_attribute ~lemma ~pos ~chunk ~entity ()
 end
 
-type t = Attribute.t list
+type t = Attribute.t list option
 
-let from_protobuf s = s.S.attribs
+type attrs = t
 
-let default length = (* TODO *)
+let of_list s = Some s
+
+let of_protobuf s = match s.S.attribs with
+    | [] -> None
+    | v -> Some v
+
+let default () = (* TODO *)
+    None
     (* let length = List.length (Grammar.EnglishGrammar.Tree.terminals t) in *)
-    CCList.init length (fun _ -> Attribute.default ())
+    (* CCList.init length (fun _ -> Attribute.default ()) *)
+
+module AttributeM =
+struct
+    include StateM
+
+    let pop () = get >>= function
+        | None -> return (Attribute.default ())
+        | Some [] -> invalid_arg "AttributeM.pop"
+        | Some (x :: xs) -> 
+            put (Some xs) >>= fun () ->
+            return x
+
+    let popi () = get >>= function
+        | i, None -> 
+            put (i+1, None) >>= fun () ->
+            return (i, Attribute.default ())
+        | _, Some [] -> invalid_arg "AttributeM.popi"
+        | i, Some (x :: xs) ->
+            put (i+1, Some xs) >>= fun () ->
+            return (i, x)
+end

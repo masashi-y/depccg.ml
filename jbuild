@@ -1,0 +1,7 @@
+(jbuild_version 1)
+
+(install
+  ((section lib)
+   (files (tagger.py ccg_seed_pb2.py))
+))
+

@@ -41,7 +41,7 @@ struct
     open Tree
 
     let show_tree attrs tree =
-        let rec aux = StateM.(function
+        let rec aux = AttributeM.(function
             | {cat; str; children=[]}
                 -> pop () >>= fun attr ->
                    let cat = Cat.show cat in
@@ -53,19 +53,19 @@ struct
                    let n_child = List.length children in
                    let head_is_left = 0 in     (* do not care *)
                    return (!%"(<T %s %i %i> %s )" (Cat.show cat) head_is_left n_child w)) in
-        StateM.eval (aux tree) attrs
+        AttributeM.eval (aux tree) attrs
 
     let show_conll_like attrs tree =
-        let rec aux = StateM.(function
+        let rec aux = AttributeM.(function
             | {cat; str; children=[]}
-                -> pop' () >>= fun (i, attr) ->
+                -> popi () >>= fun (i, attr) ->
                    let cat = Cat.show cat in
                    let pos = Attribute.pos ~def:"POS" attr in
                    return (!%"%i\t%s\t_\t%s\t%s\t_\t_\t_\t_\t%s" i str pos pos cat)
             | {cat; children}
                 -> mapM aux children >>= fun cs ->
                    return (String.concat "\n" cs)) in
-        (StateM.eval (aux tree) (1, attrs)) ^ "\n"
+        (AttributeM.eval (aux tree) (1, attrs)) ^ "\n"
 
     let is_terminal = function
         | {children=[]} -> true
@@ -241,7 +241,7 @@ struct
         let g printfun i = function
             | [] -> failwith "invalid argument in output_results"
             | ((_, t) :: _) as lst ->
-                    let attrs = Attributes.default (Tree.length t) in
+                    let attrs = Attributes.default () in
                     List.iter (fun (_, t) -> p "ID=%i\n%s\n" i (printfun attrs t)) lst in
         match fmt with
         | "auto"  -> List.iteri (g show_tree) res
@@ -335,7 +335,7 @@ module EnglishPrinter = struct
             let mk_indent depth = String.make depth ' ' in
             let rec f depth = 
                 let indent = mk_indent depth in
-                let f' c = f (depth + 1) c in StateM.(function
+                let f' c = f (depth + 1) c in AttributeM.(function
                 | {cat; str; children=[]} -> do_;
                     att <-- pop ();
                     let lemma = Attribute.lemma ~def:"X" att in
@@ -360,7 +360,7 @@ module EnglishPrinter = struct
                                 (show_cat cat) child1 child2)
                 | _ -> invalid_arg "failed in Prolog.show"
             ) in
-            !%"ccg(%d,\n%s).\n" i (StateM.eval (f 1 @@ remove_noisy_rules tree) attribs)
+            !%"ccg(%d,\n%s).\n" i (AttributeM.eval (f 1 @@ remove_noisy_rules tree) attribs)
     end
 
     module XML : sig
@@ -391,8 +391,8 @@ module EnglishPrinter = struct
 
         let show attr tree = 
             let open Attributes in
-            let rec f tree = StateM.(match tree with
-                | {cat; str; children=[]} -> pop' () >>= fun (start, att) ->
+            let rec f tree = AttributeM.(match tree with
+                | {cat; str; children=[]} -> popi () >>= fun (start, att) ->
                         let lemma = Attribute.lemma ~def:"X" att in
                         let pos = Attribute.pos ~def:"X" att in
                         let entity = Attribute.entity ~def:"X" att in
@@ -405,7 +405,7 @@ module EnglishPrinter = struct
                         return (!%"<rule type=\"%s\" cat=\"%s\">\n%s\n</rule>"
                         rule_type (Cat.show cat) (String.concat "\n" children))
             )
-            in StateM.eval (f tree) (0, attr)
+            in AttributeM.eval (f tree) (0, attr)
     end
 
         let show_xml_trees attribs tss =

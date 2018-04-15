@@ -3,6 +3,7 @@
 
 (executable (
     (name main)
+    (public_name ccgbank)
     (preprocess (pps (ppx_monadic ppx_deriving_argparse)))
     (libraries (str psq ocaml-protoc ppx_monadic unix logic thorn))
 ))

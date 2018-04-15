@@ -46,6 +46,15 @@ let read_lines file =
             | None -> []
     in parse ()
 
+let read_stdin () =
+    let rec parse () =
+        let s = try Some (read_line ())
+                with End_of_file -> None in
+        match s with
+        | Some v -> v :: parse ()
+        | None -> []
+    in parse ()
+
 let string_null s = String.length s = 0
 
 let rec flatten = function

@@ -1,0 +1,16 @@
+(jbuild_version 1)
+
+(install
+  ((section lib)
+   (files ((__init__.py as py/__init__.py)
+        (biaffine.py as py/biaffine.py)
+        (fixed_length_n_step_lstm.py as py/fixed_length_n_step_lstm.py)
+        (ja_lstm_parser_bi.py as py/ja_lstm_parser_bi.py)
+        (lstm_parser_bi_fast.py as py/lstm_parser_bi_fast.py)
+        (param.py as py/param.py)
+        (py_utils.py as py/py_utils.py)
+        (server.py as py/server.py)
+        ))
+))
+
+

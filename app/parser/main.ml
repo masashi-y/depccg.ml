@@ -16,7 +16,6 @@ module JaAstarParser = Astar.MakeAStarParser (JaGrammar)
 module JaPrinter = Printer.ParsePrinter (JaGrammar)
 module JaLoader = Reader.JapaneseLoader
 
-
 let parse_format s =
     if List.mem s ["auto"; "deriv"; "html"; "ptb"; "prolog"; "htmls"]
     then s else raise (Invalid_argument s)
@@ -82,6 +81,34 @@ let try_load name f =
         prerr_endline ("[parser] " ^ name ^ " not found. Using empty one");
         (None, 0)
 
+let () =
+    let model = "/Users/masashi-y/Camelthorn/files/models/tri_headfirst/" in
+    let libdir = "/Users/masashi-y/.opam/4.05.0/lib/camelthorn/" in
+    let res = Shexp_process.(eval Infix.(echo "this is an example sentence ." |- 
+            run "env" ["PYTHONPATH=" ^ libdir; "python"; "-W"; "ignore"; libdir </> "tagger.py"; model] |- read_all)) in
+    let ss = Ccg_seed_pb.decode_ccgseeds (Pbrt.Decoder.of_bytes (Bytes.of_string res)) in
+    let {socket; nbest; beta; format; ncores} = default in
+    let cat_list = Utils.enumerate (List.map EnCat.parse ss.categories)
+    and n_cats = (List.length ss.categories)
+    and unary_rules = EnLoader.read_unary_rules (model </> "unary_rules.txt") in
+    let seen_rules, seen_rules_size = 
+        try_load "seen rules" (fun () -> EnLoader.read_binary_rules (model </> "seen_rules.txt")) in
+    let cat_dict, cat_dict_size =
+        try_load "cat dict" (fun () -> EnLoader.read_cat_dict ss.categories (model </> "cat_dict.txt")) in
+    Printf.eprintf status (List.length ss.seeds)
+            n_cats (Hashtbl.length unary_rules)
+            seen_rules_size cat_dict_size nbest beta format ncores;
+    flush stderr;
+    let t = Sys.time () in
+    let attribs = List.map Attributes.of_protobuf ss.seeds in
+    let names = List.map (fun s -> s.id) ss.seeds in
+    let res = progress_map ncores ss.seeds
+            ~f:(fun s -> EnAstarParser.parse (Reader.read_proto_matrix n_cats s)
+            ~cat_list ~unary_rules ~seen_rules ~cat_dict
+            ~nbest ~beta ~unary_penalty:0.1 ()) in
+    Printf.eprintf "\nExecution time: %fs\n" (Sys.time() -. t);
+    EnPrinter.output_results format names attribs res
+
 (* main function for English parsing *)
 let main_en {socket; nbest; beta; format; ncores} model seeds =
     let ss = EnLoader.(match socket with
@@ -99,7 +126,7 @@ let main_en {socket; nbest; beta; format; ncores} model seeds =
             seen_rules_size cat_dict_size nbest beta format ncores;
     flush stderr;
     let t = Sys.time () in
-    let attribs = List.map Attributes.from_protobuf ss.seeds in
+    let attribs = List.map Attributes.of_protobuf ss.seeds in
     let names = List.map (fun s -> s.id) ss.seeds in
     let res = progress_map ncores ss.seeds
             ~f:(fun s -> EnAstarParser.parse (Reader.read_proto_matrix n_cats s)
