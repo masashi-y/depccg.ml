@@ -3,7 +3,6 @@ LIBDIR=$(PREFIX)/lib/camelthorn
 SHAREDIR=$(PREFIX)/share/camelthorn
 MODELDIR=models
 
-
 install: lib depccgrc
 	install -d $(SHAREDIR)
 	install -d $(SHAREDIR)/tri_headfirst
@@ -13,17 +12,9 @@ install: lib depccgrc
 	install -m 644 depccgrc $(HOME)/.depccgrc
 
 
-lib: depccgrc
-	# if [ ! -d ${MODELDIR} ]; then \
-	# fi
-	mkdir -p ${MODELDIR}
-	wget https://cl.naist.jp/\~masashi-y/resources/depccg/en_hf_tri.tar.gz -P ${MODELDIR}
-	tar xvf ${MODELDIR}/en_hf_tri.tar.gz -C ${MODELDIR}
-	wget https://cl.naist.jp/\~masashi-y/resources/depccg/ja_hf_ccgbank.tar.gz -P ${MODELDIR}
-	tar xvf ${MODELDIR}/ja_hf_ccgbank.tar.gz -C ${MODELDIR}
-	echo "done"
-	# sh ./download_en_model.sh
-	# sh ./download_ja_model.sh
+${MODELDIR}:
+	sh ./download_en_model.sh
+	sh ./download_ja_model.sh
 
 depccgrc:
 	echo "(en ("                               > depccgrc
