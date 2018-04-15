@@ -13,8 +13,8 @@ install: lib depccgrc
 
 
 lib: depccgrc
-	sh download_en_model.sh
-	sh download_ja_model.sh
+	sh ./download_en_model.sh
+	sh ./download_ja_model.sh
 
 depccgrc:
 	echo "(en ("                               > depccgrc
