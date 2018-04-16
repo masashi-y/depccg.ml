@@ -84,7 +84,7 @@ let tag ~lib ~model sents =
 
 let () =
     let {input; model; socket; nbest; beta; format; ncores}, _ = argparse_cfg default "depccg_en" Sys.argv in
-    let ParserConfig.{model = def_model; lib} = ParserConfig.load_en () in
+    let {ParserConfig.model = def_model; lib} = ParserConfig.load_en () in
     let model = match model with
         | "" -> def_model
         | _ -> model in
