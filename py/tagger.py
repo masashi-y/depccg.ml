@@ -1,8 +1,8 @@
 #!/usr/bin/python
 
 from ccg_seed_pb2 import *
-from py.lstm_parser_bi_fast import FastBiaffineLSTMParser
-from py.ja_lstm_parser_bi import BiaffineJaLSTMParser
+from lstm_parser_bi_fast import FastBiaffineLSTMParser
+from ja_lstm_parser_bi import BiaffineJaLSTMParser
 from google.protobuf.json_format import *
 import numpy as np
 import os

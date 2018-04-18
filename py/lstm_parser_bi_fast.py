@@ -14,10 +14,10 @@ from chainer.optimizer import WeightDecay, GradientClipping
 from chainer.dataset.convert import _concat_arrays
 from collections import defaultdict, OrderedDict
 
-from py.py_utils import read_pretrained_embeddings, read_model_defs
-from py.biaffine import Biaffine, Bilinear
-from py.param import Param
-from py.fixed_length_n_step_lstm import FixedLengthNStepLSTM
+from py_utils import read_pretrained_embeddings, read_model_defs
+from biaffine import Biaffine, Bilinear
+from param import Param
+from fixed_length_n_step_lstm import FixedLengthNStepLSTM
 
 UNK = "*UNKNOWN*"
 OOR2 = "OOR2"

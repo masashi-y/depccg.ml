@@ -10,3 +10,4 @@
 .omakedb*
 .DS_Store
 _build
+.merlin

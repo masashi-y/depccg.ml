@@ -84,9 +84,9 @@ struct
         | `Punct str  -> str
 
 
-    let preprocess s = let regex = Str.regexp "\\([]\\[()/\\\\]\\)" in
-                       let s' = Str.global_replace regex " \\1 " s in
-                       Str.split (Str.regexp " +") s'
+    let preprocess s =
+        s |> Str.(global_replace (regexp "\\([]\\[()/\\\\]\\)") " \\1 ")
+          |> Str.(split (regexp " +"))
 
     let atom c f = match c with
         | "S"   -> `S f
@@ -110,8 +110,7 @@ struct
         | _ -> false
 
     let is_modifier = function
-        | `Fwd (x, y)
-        | `Bwd (x, y) -> x = y
+        | `Fwd (x, y) | `Bwd (x, y) -> x = y
         | _ -> false
 
     let rec remove_all_feat = function
@@ -178,8 +177,7 @@ struct
                | [`Cat y; `Slash f; `Cat x] -> f x y
                | _ -> raise (Parse_error str)
             end
-            | head :: rest -> begin
-                match head with
+            | head :: rest -> begin match head with
                 | "," | "." | ";" | ":" | "LRB" | "RRB"
                 | "conj" | "*START*" | "*END*" as s
                     -> parse' (`Cat (`Punct s) :: stack) rest

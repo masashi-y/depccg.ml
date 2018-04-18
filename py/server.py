@@ -1,7 +1,7 @@
 
 from time import sleep
 from ccg_seed_pb2 import *
-from py.lstm_parser_bi_fast import FastBiaffineLSTMParser
+from lstm_parser_bi_fast import FastBiaffineLSTMParser
 from google.protobuf.json_format import *
 import numpy as np
 import os, sys, chainer, argparse, socket, struct

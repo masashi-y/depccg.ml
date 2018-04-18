@@ -13,9 +13,9 @@ from chainer.training import extensions
 from chainer.optimizer import WeightDecay, GradientClipping
 from collections import defaultdict, OrderedDict
 
-from py.py_utils import read_pretrained_embeddings, read_model_defs
-from py.biaffine import Biaffine
-from py.param import Param
+from py_utils import read_pretrained_embeddings, read_model_defs
+from biaffine import Biaffine
+from param import Param
 
 UNK = "*UNKNOWN*"
 START = "*START*"

@@ -93,7 +93,7 @@ struct
             ?(unary_penalty=0.1)
             ?(beta=0.000001) () =
         let n_words = L.length sentence in
-        let index = let i = ref 0 in fun () -> i := succ !i; !i in
+        let index = let i = ref 0 in fun () -> incr i; !i in
         let new_item ?(final=false) tree ~in_score ~out_score ~start ~length = 
             let id = index () in
             let score=in_score +. out_score in
@@ -105,7 +105,7 @@ struct
             | None -> true
         in
         let cat_dict w i = match cat_dict with
-            | Some d -> (try let arr = H.find d w in arr.(i)
+            | Some d -> (try (H.find d w).(i)
                         with Not_found -> true)
             | None -> true
         in

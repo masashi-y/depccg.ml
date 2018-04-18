@@ -325,15 +325,16 @@ struct
     let is_acceptable_unary c r = r <> `RP || Cat.is_type_raised c
 
     let apply_rules_with_cache cache (c1, c2) =
-                             let prep = Cat.remove_some_feat [`Nb] in
-                             let cats = (prep c1, prep c2) in
-                             try Hashtbl.find cache cats with Not_found ->
-                                 let rules = apply_rules cats in
-                                 Hashtbl.add cache cats rules;
-                                 rules
+        let prep = Cat.remove_some_feat [`Nb] in
+        let cats = (prep c1, prep c2) in
+        try Hashtbl.find cache cats with Not_found ->
+            let rules = apply_rules cats in
+            Hashtbl.add cache cats rules;
+            rules
 
-    let is_seen seen_rules (c1, c2) = let prep = Cat.remove_some_feat [`Var; `Nb]
-                                      in Hashtbl.mem seen_rules (prep c1, prep c2)
+    let is_seen seen_rules (c1, c2) =
+        let prep = Cat.remove_some_feat [`Var; `Nb] in
+        Hashtbl.mem seen_rules (prep c1, prep c2)
 end
 
 type ja_rules = [ `FwdCmp
@@ -389,6 +390,7 @@ struct
             | `Conj        -> "<P>"
             | #Base.t as t  -> Base.show t
     end
+
     module Tree = Tree (Cat) (Rules)
 
     open Cat
@@ -440,10 +442,10 @@ struct
     let is_acceptable_unary _ _ = true
 
     let apply_rules_with_cache cache cats =
-                            try Hashtbl.find cache cats with Not_found ->
-                                let rules = apply_rules cats in
-                                Hashtbl.add cache cats rules;
-                                rules
+        try Hashtbl.find cache cats with Not_found ->
+            let rules = apply_rules cats in
+            Hashtbl.add cache cats rules;
+            rules
 
     (* check a pair of cats is seen in a dictionary *)
     let is_seen seen_rules cats = Hashtbl.mem seen_rules cats

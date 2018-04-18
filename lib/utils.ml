@@ -38,22 +38,19 @@ let walk_directory_tree dir pattern =
 
 let read_lines file =
     let ch = open_in file in
-    let rec parse () =
-        let one = try Some (input_line ch)
-                with End_of_file -> close_in_noerr ch; None
-        in match one with
-            | Some s -> s :: parse ()
-            | None -> []
-    in parse ()
+    let rec parse acc =
+        match input_line ch with
+            | s -> parse (s :: acc)
+            | exception End_of_file -> 
+                close_in_noerr ch; List.rev acc
+    in parse []
 
 let read_stdin () =
-    let rec parse () =
-        let s = try Some (read_line ())
-                with End_of_file -> None in
-        match s with
-        | Some v -> v :: parse ()
-        | None -> []
-    in parse ()
+    let rec parse acc =
+        match read_line () with
+        | v -> parse (v :: acc)
+        | exception End_of_file -> List.rev acc in
+    parse []
 
 let string_null s = String.length s = 0
 
