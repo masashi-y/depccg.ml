@@ -1,4 +1,4 @@
-# Camelthorn :seedling::deciduous_tree::camel:
+# depccg.ml :seedling::deciduous_tree::camel:
 
 OCaml implementation for A\* CCG parser in:  
 [A\* CCG Parsing with a Supertag and Dependency Factored Model](https://arxiv.org/abs/1704.06936).
@@ -10,21 +10,28 @@ OCaml implementation for A\* CCG parser in:
 
 * Python 3
 * OCaml (newer version)
-* opam
+* opam (opam-installer)
 
 ```sh
-$ pip install chainer protobuf
-$ opam install psq ocaml-protoc
-$ git clone git://github.com/masashi-y/Camelthorn.git
-$ cd Camelthorn
-$ omake
-$ ./download_en_model.sh # ./download_ja_model.sh for Japanese model
+$ pip install chainer protobuf spacy
+$ opam pin add depccg -k git https://github.com/masashi-y/depccg.ml.git
 ```
 
 ### Usage
 ```sh
-$ echo "this is a test example." > input.txt
-$ ./run.sh -tokenize -format html input.txt > res.html
+$ echo "this is a test example ." | depccg_en -format deriv -annotator spacy
+ this        is           a      test  example  .
+  NP   (S[dcl]\NP)/NP  NP[nb]/N  N/N      N     .
+                                --------------->
+                                       N
+                      ------------------------->
+                                 NP
+      ----------------------------------------->
+                      S[dcl]\NP
+-----------------------------------------------<
+                    S[dcl]
+--------------------------------------------------<rp>
+                      S[dcl]
 ```
 
 | Parser | labeled F1 | unlabeled F1 |
@@ -32,14 +39,6 @@ $ ./run.sh -tokenize -format html input.txt > res.html
 |depccg (paper)  | 88.8% | 94.0% |
 |Camelthorn| 88.9% | 94.1%|
 
-Japanese parsing is also available.  
-By default `run.sh` expects English as input and uses models/tri\_headfirst.  
-So please specify explicitly `-lang ja` and `-model models/ja_headfinal`.  
-** The parser accepts pre-tokenized Japanese texts only.
-
-```sh
-$ echo "これ は テスト の 文 です 。" > input.txt
-$ ./run.sh -format html -l ja -m models/ja_headfinal input.txt > res.html
 ```
 
 ### Citation
