@@ -12,13 +12,34 @@ OCaml implementation for A\* CCG parser in:
 * OCaml (newer version)
 * opam (opam-installer)
 
-```sh
+```
 $ pip install chainer protobuf spacy
 $ opam pin add depccg -k git https://github.com/masashi-y/depccg.ml.git
 ```
 
 ### Usage
-```sh
+```
+Usage: depccg_en [-help] [-input INPUT]  [-model MODEL]
+                  [-annotator ANNOTATOR]  [-nbest NBEST]  [-beta BETA]
+                  [-format FORMAT]  [-socket SOCKET]  [-ncores NCORES]
+                  [-verbose]
+
+Arguments:
+
+Options:
+  -i, -input INPUT         :  input file (txt file or seed file (.seeds)  {none}
+  -m, -model MODEL         :  path to model directory  {none}
+  -a, -annotator ANNOTATOR :  assign POS, NER-tags and lemma using annotator [candc, spacy]  {none}
+  -n, -nbest NBEST         :  output nbest parses  {1}
+  -b, -beta BETA           :  beta value for pruning  {1e-08}
+  -f, -format FORMAT       :  output format: [auto, deriv, html, ptb, prolog, htmls, conll, xml]  {"auto"}
+  -S, -socket SOCKET       :  use socket to contact with tagger  {none}
+  -c, -ncores NCORES       :  the number of cores to parallelize A* decoders  {4}
+  -v, -verbose             :  show all messages  {false}
+  -h, -help                :  show this help message and exit
+```
+
+```
 $ echo "this is a test example ." | depccg_en -format deriv -annotator spacy
  this        is           a      test  example  .
   NP   (S[dcl]\NP)/NP  NP[nb]/N  N/N      N     .
@@ -37,9 +58,8 @@ $ echo "this is a test example ." | depccg_en -format deriv -annotator spacy
 | Parser | labeled F1 | unlabeled F1 |
 |:------:|:----------:|:------------:|
 |depccg (paper)  | 88.8% | 94.0% |
-|Camelthorn| 88.9% | 94.1%|
+|depccg.ml| 88.9% | 94.1%|
 
-```
 
 ### Citation
 
