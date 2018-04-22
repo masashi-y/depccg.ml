@@ -4,20 +4,16 @@ open Ccg_seed_types
 open Utils
 open Common
 
-module EnCat = Cat.EnglishCategories
-module EnGrammar = Grammar.EnglishGrammar
-module EnAstarParser = Astar.MakeAStarParser (EnGrammar)
-module EnPrinter = Printer.EnglishPrinter
-module EnLoader = Reader.EnglishLoader
+module JaCat = Cat.JapaneseCategories
+module JaGrammar = Grammar.JapaneseGrammar
+module JaAstarParser = Astar.MakeAStarParser (JaGrammar)
+module JaPrinter = Printer.ParsePrinter (JaGrammar)
+module JaLoader = Reader.JapaneseLoader
 
 
 let parse_format s =
-    if List.mem s ["auto"; "conll"; "deriv"; "html"; "ptb"; "prolog"; "htmls"; "xml"]
+    if List.mem s ["auto"; "conll"; "deriv"; "html"; "ptb"; "htmls"]
     then s else raise (Invalid_argument s)
-
-let parse_annotator s =
-    if List.mem s ["candc"; "spacy"]
-    then Some s else raise (Invalid_argument s)
 
 type cfg = {
     input : string option; [@short "-i"]
@@ -26,9 +22,6 @@ type cfg = {
     model : string option; [@short "-m"]
         (** path to model directory *)
 
-    annotator : string option; [@short "-a"] [@parse parse_annotator]
-        (** assign POS, NER-tags and lemma using annotator [candc, spacy] *)
-
     nbest : int;           [@short "-n"]
         (** output nbest parses *)
 
@@ -36,7 +29,7 @@ type cfg = {
         (** beta value for pruning *)
 
     format : string;       [@short "-f"] [@parse parse_format]
-        (** output format: [auto, deriv, html, ptb, prolog, htmls, conll, xml] *)
+        (** output format: [auto, deriv, html, ptb, htmls, conll] *)
 
     socket : string option;[@short "-S"]
         (** use socket to contact with tagger *)
@@ -51,7 +44,6 @@ type cfg = {
 let default = {
     input = None;
     model = None;
-    annotator = None;
     nbest = 1;
     beta = 0.00000001;
     format = "auto";
@@ -72,12 +64,10 @@ let status =
 "[parser] output format:\t%s\n"                 ^^
 "[parser] the number of cores:\t%d\n%!"
 
-let tag ~lib ~model ~warn ~annotator sents =
+let tag ~lib ~model ~warn sents =
     let script = [lib </> "tagger.py"] in
     let warn = if warn then [] else ["-W"; "ignore"] in
-    let args = match annotator with
-        | None -> [model] 
-        | Some v -> ["--annotator"; v; model] in
+    let args = [model] in
     let sents = String.concat "\n" sents in
     Shexp_process.(eval Infix.(echo sents |- 
         run "env" (["PYTHONPATH=" ^ lib; "python"] @ warn @ script @ args) |- read_all))
@@ -86,43 +76,42 @@ let tag ~lib ~model ~warn ~annotator sents =
 
 
 let () =
-    let {input; model; annotator; socket; nbest;
-        beta; format; ncores; verbose}, _ = argparse_cfg default "depccg_en" Sys.argv in
-    let {ParserConfig.model = def_model; lib} = ParserConfig.load_en () in
+    let {input; model; socket; nbest;
+            beta; format; ncores; verbose}, _ = argparse_cfg default "depccg_ja" Sys.argv in
+    let {ParserConfig.model = def_model; lib} = ParserConfig.load_ja () in
     let model = CCOpt.get_or ~default:def_model model in
     let warn = verbose in
     let ss = match input with
-        | None -> tag ~lib ~model ~annotator ~warn (Utils.read_stdin ())
+        | None -> tag ~lib ~model ~warn (Utils.read_stdin ())
         | Some i -> begin match socket with
             | Some s ->
                 Printf.eprintf "[parser] connecting socket %s\n%!" s;
-                EnLoader.read_ccgseeds_socket s i
+                JaLoader.read_ccgseeds_socket s i
             | None -> begin
                 if CCString.suffix ~suf:".seeds" i then
                    (Printf.eprintf "[parser] reading seed file %s\n%!" i;
-                   EnLoader.read_ccgseeds i)
+                   JaLoader.read_ccgseeds i)
                 else
                 (Printf.eprintf "[parser] tagging inputs\n%!";
-                tag ~lib ~model ~annotator ~warn (Utils.read_lines i))
+                tag ~lib ~model ~warn (Utils.read_lines i))
             end
         end in
-    let cat_list = Utils.enumerate (List.map EnCat.parse ss.categories)
+    let cat_list = Utils.enumerate (List.map JaCat.parse ss.categories)
     and n_cats = (List.length ss.categories)
-    and unary_rules = EnLoader.read_unary_rules (model </> "unary_rules.txt") in
+    and unary_rules = JaLoader.read_unary_rules (model </> "unary_rules.txt") in
     let seen_rules, seen_rules_size = 
-        try_load "seen rules" (fun () -> EnLoader.read_binary_rules (model </> "seen_rules.txt")) in
-    let cat_dict, cat_dict_size =
-        try_load "cat dict" (fun () -> EnLoader.read_cat_dict ss.categories (model </> "cat_dict.txt")) in
+        try_load "seen rules" (fun () -> JaLoader.read_binary_rules (model </> "seen_rules.txt")) in
     Printf.eprintf status (List.length ss.seeds)
             n_cats (Hashtbl.length unary_rules)
-            seen_rules_size cat_dict_size nbest beta format ncores;
+            seen_rules_size 0 nbest beta format ncores;
+    flush stderr;
     let t = Sys.time () in
-    let attribs = List.map Attributes.of_protobuf ss.seeds in
     let names = List.map (fun s -> s.id) ss.seeds in
     let res = progress_map ncores ss.seeds
-            ~f:(fun s -> EnAstarParser.parse (Reader.read_proto_matrix n_cats s)
-            ~cat_list ~unary_rules ~seen_rules ~cat_dict
+            ~f:(fun s -> JaAstarParser.parse (Reader.read_proto_matrix n_cats s)
+            ~cat_list ~unary_rules ~seen_rules ~cat_dict:None
             ~nbest ~beta ~unary_penalty:0.1 ()) in
-    Printf.eprintf "\nExecution time: %fs\n" (Sys.time() -. t);
-    EnPrinter.output_results format names attribs res
+    Printf.eprintf "\nExecution time: %fs\n" (Sys.time () -. t);
+    JaPrinter.output_results format names res
+
 
