@@ -9,9 +9,13 @@ module type LOADER =
 sig
     type cat
 
-    val read_ccgseeds : file -> Ccg_seed_types.ccgseeds
+    val read_ccgseeds : string -> Ccg_seed_types.ccgseeds
 
-    val read_ccgseeds_socket : file -> file -> Ccg_seed_types.ccgseeds
+    val read_ccgseeds_bytes : Bytes.t -> Ccg_seed_types.ccgseeds
+
+    val load_ccgseeds : file -> Ccg_seed_types.ccgseeds
+
+    val load_ccgseeds_socket : file -> file -> Ccg_seed_types.ccgseeds
 
     val read_cats : file -> cat list
 
@@ -26,7 +30,13 @@ module Loader (Cat : CATEGORIES) =
 struct
     type cat = Cat.t
 
-    let read_ccgseeds file =
+    let read_ccgseeds_bytes bytes =
+        Ccg_seed_pb.decode_ccgseeds (Pbrt.Decoder.of_bytes bytes)
+
+    let read_ccgseeds string =
+        read_ccgseeds_bytes (Bytes.of_string string)
+
+    let load_ccgseeds file =
         let bytes = 
             let ic = open_in file in 
             let len = in_channel_length ic in 
@@ -34,7 +44,7 @@ struct
             really_input ic bytes 0 len; 
             close_in ic; 
             bytes 
-        in Ccg_seed_pb.decode_ccgseeds (Pbrt.Decoder.of_bytes bytes)
+        in read_ccgseeds_bytes bytes
 
     let recvall sock =
         let len = input_binary_int sock in
@@ -42,7 +52,7 @@ struct
         really_input sock buf 0 len;
         buf
 
-    let read_ccgseeds_socket socket filename =
+    let load_ccgseeds_socket socket filename =
         let lines = String.concat "\n" (read_lines filename) in
         let input = Bytes.of_string lines in
         let sock = Unix.socket Unix.PF_UNIX Unix.SOCK_STREAM 0 in

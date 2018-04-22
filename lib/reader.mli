@@ -8,9 +8,13 @@ module type LOADER =
 sig
     type cat
 
-    val read_ccgseeds : file -> Ccg_seed_types.ccgseeds
+    val read_ccgseeds : string -> Ccg_seed_types.ccgseeds
 
-    val read_ccgseeds_socket : file -> file -> Ccg_seed_types.ccgseeds
+    val read_ccgseeds_bytes : Bytes.t -> Ccg_seed_types.ccgseeds
+
+    val load_ccgseeds : file -> Ccg_seed_types.ccgseeds
+
+    val load_ccgseeds_socket : file -> file -> Ccg_seed_types.ccgseeds
 
     val read_cats : file -> cat list
 

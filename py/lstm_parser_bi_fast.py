@@ -259,7 +259,7 @@ class FastBiaffineLSTMParser(chainer.Chain):
         """
         xs = [self.extractor.process(x) for x in xs]
         ws, ss, ps, ls = concat_examples(xs)
-        with chainer.using_config('train', False):
+        with chainer.no_backprop_mode(), chainer.using_config('train', False):
             cat_ys, dep_ys = self.forward(ws, ss, ps, ls)
         return zip([F.log_softmax(y[1:-1]).data for y in cat_ys],
                 [F.log_softmax(y[1:-1, :-1]).data for y in dep_ys])

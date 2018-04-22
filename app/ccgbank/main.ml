@@ -1,5 +1,5 @@
 
-open Thorn
+open Depccg
 open Ccg_seed_types
 open Utils
 

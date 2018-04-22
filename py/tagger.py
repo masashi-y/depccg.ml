@@ -168,6 +168,5 @@ if __name__ == '__main__':
             sentences, names, annotator, tagger, args.batchsize)
 
     # log("writing results to : %s" % args.out)
-    with open(args.out, "wb") as f:
-        sys.stdout.buffer.write(seeds.SerializeToString())
+    sys.stdout.buffer.write(seeds.SerializeToString())
     # log("done")

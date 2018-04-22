@@ -1,8 +1,9 @@
 
-open Thorn
+open Depccg
 open Ccg_seed_types
 open Utils
 open Common
+open Reader
 
 module JaCat = Cat.JapaneseCategories
 module JaGrammar = Grammar.JapaneseGrammar
@@ -71,7 +72,7 @@ let tag ~lib ~model ~warn sents =
     let sents = String.concat "\n" sents in
     Shexp_process.(eval Infix.(echo sents |- 
         run "env" (["PYTHONPATH=" ^ lib; "python"] @ warn @ script @ args) |- read_all))
-    |> Bytes.of_string |> Pbrt.Decoder.of_bytes |> Ccg_seed_pb.decode_ccgseeds
+    |> JaLoader.read_ccgseeds
     
 
 
@@ -81,21 +82,9 @@ let () =
     let {ParserConfig.model = def_model; lib} = ParserConfig.load_ja () in
     let model = CCOpt.get_or ~default:def_model model in
     let warn = verbose in
-    let ss = match input with
-        | None -> tag ~lib ~model ~warn (Utils.read_stdin ())
-        | Some i -> begin match socket with
-            | Some s ->
-                Printf.eprintf "[parser] connecting socket %s\n%!" s;
-                JaLoader.read_ccgseeds_socket s i
-            | None -> begin
-                if CCString.suffix ~suf:".seeds" i then
-                   (Printf.eprintf "[parser] reading seed file %s\n%!" i;
-                   JaLoader.read_ccgseeds i)
-                else
-                (Printf.eprintf "[parser] tagging inputs\n%!";
-                tag ~lib ~model ~warn (Utils.read_lines i))
-            end
-        end in
+    let tagger = tag ~lib ~model ~warn in
+    let loader = (module JaLoader : LOADER) in
+    let ss = load_seeds ~tagger ~loader ~socket input in
     let cat_list = Utils.enumerate (List.map JaCat.parse ss.categories)
     and n_cats = (List.length ss.categories)
     and unary_rules = JaLoader.read_unary_rules (model </> "unary_rules.txt") in
