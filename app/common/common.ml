@@ -23,9 +23,9 @@ let load_seeds ~tagger ~loader ~socket input =
     let module Loader = (val loader : LOADER) in
     match input with
     | None -> (let input = Utils.read_stdin () in
-              try begin let res = Loader.read_ccgseeds (CCString.unlines input) in
+              try let res = Loader.read_ccgseeds (String.concat "\n" input) in
                   Printf.eprintf "[parser] read ccg_seeds protobuf from stdin%!";
-                  res end
+                  res
               with _ -> begin
                   Printf.eprintf "[parser] running tagger on the text from stdin%!";
                   tagger input end)
