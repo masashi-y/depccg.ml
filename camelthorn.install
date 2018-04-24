@@ -1,0 +1,23 @@
+lib: [
+  "_build/install/default/lib/camelthorn/META" {"META"}
+  "_build/install/default/lib/camelthorn/opam" {"opam"}
+  "_build/install/default/lib/camelthorn/__init__.py" {"__init__.py"}
+  "_build/install/default/lib/camelthorn/biaffine.py" {"biaffine.py"}
+  "_build/install/default/lib/camelthorn/fixed_length_n_step_lstm.py" {"fixed_length_n_step_lstm.py"}
+  "_build/install/default/lib/camelthorn/ja_lstm_parser_bi.py" {"ja_lstm_parser_bi.py"}
+  "_build/install/default/lib/camelthorn/lstm_parser_bi_fast.py" {"lstm_parser_bi_fast.py"}
+  "_build/install/default/lib/camelthorn/param.py" {"param.py"}
+  "_build/install/default/lib/camelthorn/py_utils.py" {"py_utils.py"}
+  "_build/install/default/lib/camelthorn/server.py" {"server.py"}
+  "_build/install/default/lib/camelthorn/tagger.py" {"tagger.py"}
+  "_build/install/default/lib/camelthorn/ccg_seed_pb2.py" {"ccg_seed_pb2.py"}
+]
+bin: [
+  "_build/install/default/bin/depccg_ja" {"depccg_ja"}
+  "_build/install/default/bin/depccg_en" {"depccg_en"}
+  "_build/install/default/bin/ccgbank" {"ccgbank"}
+]
+doc: [
+  "_build/install/default/doc/camelthorn/README.md"
+  "_build/install/default/doc/camelthorn/LICENSE"
+]
