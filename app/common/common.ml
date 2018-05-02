@@ -24,10 +24,10 @@ let load_seeds ~tagger ~loader ~socket input =
     match input with
     | None -> (let input = Utils.read_stdin () in
               try let res = Loader.read_ccgseeds (String.concat "\n" input) in
-                  Printf.eprintf "[parser] read ccg_seeds protobuf from stdin%!";
+                  Printf.eprintf "[parser] read ccg_seeds protobuf from stdin\n%!";
                   res
               with _ -> begin
-                  Printf.eprintf "[parser] running tagger on the text from stdin%!";
+                  Printf.eprintf "[parser] running tagger on the text from stdin\n%!";
                   tagger input end)
     | Some i -> begin match socket with
         | Some s ->

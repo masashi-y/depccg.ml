@@ -191,11 +191,13 @@ struct
             else res in
         let f i (name, ts) =
             let res = show_html_trees [ts] in
+            let hd = snd (List.hd ts) in
+            let sent = String.concat " " (Tree.terminals hd) in
             let fname = match name with
                 | None -> !%"%d.html" i
                 | Some n -> new_fname 1 n (!%"%s.html" n) in
             write_file (dir </> fname) res;
-            fname in
+            fname, sent in
         let () = Unix.mkdir dir 0o744 in
         let filenames = List.mapi f (List.combine names tss) in
         write_file (dir </> "index.html")
@@ -218,12 +220,13 @@ struct
 </tr>%s
 </table>
 </body>
-</html>" (String.concat "" @@ List.mapi (fun i fname ->
+</html>" (String.concat "" @@ List.mapi (fun i (fname, sent) ->
     !% "
 <tr>
   <td>%d</td>
   <td><a href=\"%s\">%s</a></td>
-</tr>" i fname fname) filenames));
+  <td>%s</td>
+</tr>" i fname fname sent) filenames));
   Printf.eprintf "write results to directory: %s\n" dir
 
     let sample_tree = let open Cat in
