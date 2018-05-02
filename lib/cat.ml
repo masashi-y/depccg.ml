@@ -179,7 +179,7 @@ struct
             end
             | head :: rest -> begin match head with
                 | "," | "." | ";" | ":" | "LRB" | "RRB"
-                | "conj" | "*START*" | "*END*" as s
+                | "conj" | "*START*" | "*END*" | "*UNKNOWN*" as s
                     -> parse' (`Cat (`Punct s) :: stack) rest
                 | "S" | "N" | "NP" | "PP" as s
                 -> (* see if a feature value follows *)
