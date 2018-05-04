@@ -9,7 +9,8 @@ exception Parse_error of string
 module type CATEGORIES =
 sig
     type feature
-    type t = [ `S of feature
+    type t = [ `X
+             | `S of feature
              | `N of feature
              | `NP of feature
              | `PP of feature
@@ -17,6 +18,7 @@ sig
              | `Bwd of t * t
              | `Punct of string]
 
+    val x : t
     val s : t
     val n : t
     val np : t
@@ -31,6 +33,7 @@ sig
     val is_functor : t -> bool
     val is_punct : t -> bool
     val is_modifier : t -> bool
+    val is_variable : t -> bool
     val remove_all_feat : t -> t
     val remove_some_feat : feature list -> t -> t
     val unify : t -> t -> t -> t
@@ -43,7 +46,8 @@ module Categories (Feature : FEATURE)
 struct
 
     type feature = Feature.t
-    type t = [ `S of feature
+    type t = [ `X
+             | `S of feature
              | `N of feature
              | `NP of feature
              | `PP of feature
@@ -52,6 +56,7 @@ struct
              | `Punct of string]
 
 
+    let x = `X
     let s = `S Feature.none
     and n = `N Feature.none
     and np = `NP Feature.none
@@ -73,7 +78,8 @@ struct
 
 
     let rec show ?(bracket=false) = function
-          `S f  -> "S" ^ Feature.show f
+        | `X    -> "X"
+        | `S f  -> "S" ^ Feature.show f
         | `N f  -> "N" ^ Feature.show f
         | `NP f -> "NP" ^ Feature.show f
         | `PP f -> "PP" ^ Feature.show f
@@ -111,6 +117,10 @@ struct
 
     let is_modifier = function
         | `Fwd (x, y) | `Bwd (x, y) -> x = y
+        | _ -> false
+
+    let is_variable = function
+        | `X -> true
         | _ -> false
 
     let rec remove_all_feat = function
@@ -162,8 +172,8 @@ struct
             | `PP f' when Feature.is_var f' -> `PP f
             | `Fwd (x, y) -> unify_feat x f /: unify_feat y f
             | `Bwd (x, y) -> unify_feat x f |: unify_feat y f
-            | _ -> c
-        in match get_unification a b with
+            | _ -> c in
+        match get_unification a b with
         | Some f -> unify_feat c f
         | None -> c
 
@@ -181,6 +191,7 @@ struct
                 | "," | "." | ";" | ":" | "LRB" | "RRB"
                 | "conj" | "*START*" | "*END*" | "*UNKNOWN*" as s
                     -> parse' (`Cat (`Punct s) :: stack) rest
+                | "X" -> parse' (`Cat `X :: stack) rest
                 | "S" | "N" | "NP" | "PP" as s
                 -> (* see if a feature value follows *)
                     let (feat, rest') = Feature.parse rest in
@@ -204,4 +215,3 @@ end
 module EnglishCategories = Categories (EnglishFeature)
 
 module JapaneseCategories = Categories (JapaneseFeature)
-

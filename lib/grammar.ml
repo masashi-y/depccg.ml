@@ -210,6 +210,7 @@ type en_rules = [ `FwdCmp
                 | `RP             (* RemovePunctuation *)
                 | `CommaVPtoADV   (* CommaAndVerbPhraseToAdverb *)
                 | `ParentDirect   (* ParentheticalDirectSpeech *)
+                | `Variable
                 | base_rules]
 
 module EnglishGrammar : GRAMMAR
@@ -235,7 +236,8 @@ struct
                        `Conj;
                        `RP;
                        `CommaVPtoADV;
-                       `ParentDirect]
+                       `ParentDirect;
+                       `Variable]
 
         let intro = `Intro
         let unary = `Unary
@@ -249,6 +251,7 @@ struct
             | `RP           -> "<rp>"
             | `CommaVPtoADV -> "<*>"
             | `ParentDirect -> "<*>"
+            | `Variable     -> "<x>"
             | #Base.t as t  -> Base.show t
     end
 
@@ -298,8 +301,12 @@ struct
 
     (* PUNCT x --> x *)  (* x PUNCT --> x *)
     let remove_punctuation = function
-        | `Punct _, x -> [x]
+        | `Punct _, x
         | x, `Punct _ -> [x]
+        | _ -> []
+
+    let variable = function
+        | `X, x | x, `X -> [x]
         | _ -> []
 
     let apply cs rule =
@@ -315,6 +322,7 @@ struct
         | `RP           -> p remove_punctuation
         | `CommaVPtoADV -> p comma_vp_to_adv
         | `ParentDirect -> p parenthetical_direct_speech
+        | `Variable     -> p variable
         | (`Intro | `Unary) -> invalid_arg "apply"
 
     let apply_rules cs =
@@ -452,3 +460,21 @@ struct
 
 end
 
+
+(*
+let () =
+    let module EnCat = EnglishCategories in
+    let test a b =
+        let x = EnCat.parse a in
+        let y = EnCat.parse b in
+        let res = EnglishGrammar.apply_rules (x, y) in
+        Printf.printf "(%s, %s)\n" (EnCat.show x) (EnCat.show y);
+        List.iter (fun (rule, z) ->
+            Printf.printf "  -- (%s) --> %s\n"(EnglishGrammar.Rules.show rule) (EnCat.show z)) res in
+    test "X" "X\\X";
+    test "X" "S[dcl]\\X";
+    test "S[dcl]/X" "X";
+    test "S[dcl]/NP" "X";
+    test "S[dcl]/X" "NP";
+    ()
+*)

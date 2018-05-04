@@ -126,6 +126,7 @@ struct
             | "" -> res
             | s -> !% fstr res s in
         let rec show_html_cat = function
+            | `X -> !% cstr "X"
             | `S f  -> add_feat "S" f
             | `N f  -> add_feat "N" f
             | `NP f -> add_feat "NP" f
@@ -293,6 +294,7 @@ module EnglishPrinter = struct
                         in !%"%s:%s" c s'
             in
             let rec f = function
+            | `X -> "x"
             | `S f -> show_atom "s" f
             | `N f -> show_atom "n" f
             | `NP f -> show_atom "np" f

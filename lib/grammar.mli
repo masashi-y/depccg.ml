@@ -68,8 +68,8 @@ end
 type base_rules = [ `FwdApp | `BwdApp | `Intro | `Unary]
 
 
-type en_rules = [ `FwdCmp | `BwdCmp | `GenFwdCmp | `GenBwdCmp
-                | `Conj | `RP | `CommaVPtoADV | `ParentDirect | base_rules]
+type en_rules = [ `FwdCmp | `BwdCmp | `GenFwdCmp | `GenBwdCmp | `Conj
+                | `RP | `CommaVPtoADV | `ParentDirect | `Variable | base_rules]
 
 module EnglishGrammar : GRAMMAR with type feature = en_feature
                                 and type rules = en_rules
