@@ -86,7 +86,7 @@ struct
     let read_cat_dict cat_list file =
         let res = Hashtbl.create 7000 in
         let scan l = match String.split_on_char '\t' l with
-        | w :: cs -> let v = List.map (fun c -> List.mem c cs) cat_list in
+        | w :: cs -> let v = List.map (fun c -> List.mem c ("X" :: cs)) cat_list in
                      Hashtbl.add res w (Array.of_list v)
         | _ -> invalid_arg "read_cat_dict" in
         read_lines file |> List.filter not_comment |> List.iter scan;

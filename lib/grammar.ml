@@ -340,9 +340,10 @@ struct
             Hashtbl.add cache cats rules;
             rules
 
-    let is_seen seen_rules (c1, c2) =
-        let prep = Cat.remove_some_feat [`Var; `Nb] in
-        Hashtbl.mem seen_rules (prep c1, prep c2)
+    let is_seen seen_rules = function
+        | `X, _ | _, `X -> true
+        | c1, c2 -> let prep = Cat.remove_some_feat [`Var; `Nb] in
+                    Hashtbl.mem seen_rules (prep c1, prep c2)
 end
 
 type ja_rules = [ `FwdCmp
