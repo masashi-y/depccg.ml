@@ -8,7 +8,8 @@ let progress_map ncores ~f lst =
         Printf.eprintf "\b\r[parser] %i/%i" (i+1) size;
         flush stderr;
         y in
-    let res = Parmap.(parmapi ~ncores f' (L lst)) in
+    (* let res = Parmap.(parmapi ~ncores f' (L lst)) in *)
+    let res = List.mapi f' lst in
     Printf.eprintf "\b\r[parser] done         \n";
     res
 

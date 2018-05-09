@@ -87,6 +87,7 @@ struct
             ~cat_list
             ~unary_rules
             ~nbest
+            ?(roots=None)
             ?(seen_rules=None)
             ?(cat_dict=None)
             ?(prune_size=50)
@@ -102,13 +103,14 @@ struct
         in
         let is_seen cs = match seen_rules with
             | Some rules -> is_seen rules cs
-            | None -> true
-        in
+            | None -> true in
         let cat_dict w i = match cat_dict with
             | Some d -> (try (H.find d w).(i)
                         with Not_found -> true)
-            | None -> true
-        in
+            | None -> true in
+        let possible_root_cats = match roots with
+            | Some s -> s
+            | None -> possible_root_cats in
         let best_dep_scores = Array.make n_words neg_infinity
         and best_cat_scores = Array.make n_words neg_infinity in
         let init_queues = LL.fold_left (enumerate sentence) ~init:[]

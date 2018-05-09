@@ -20,6 +20,10 @@ let parse_annotator s =
     if List.mem s ["candc"; "spacy"]
     then Some s else raise (Invalid_argument s)
 
+let parse_cats s =
+    try Some (List.map EnCat.parse (String.split_on_char ',' s))
+    with _ -> raise (Invalid_argument s)
+
 type cfg = {
     input : string option; [@short "-i"]
         (** input file (txt file or seed file (.seeds) *)
@@ -45,6 +49,9 @@ type cfg = {
     ncores : int;          [@short "-c"]
         (** the number of cores to parallelize A* decoders *)
 
+    roots : EnCat.t list option;  [@short "-r"] [@parse parse_cats]
+        (** accepts only these categories in root of a tree (e.g. S[dcl]) *)
+
     verbose : bool;        [@short "-v"]
         (** show all messages *)
 } [@@deriving argparse]
@@ -58,6 +65,7 @@ let default = {
     format = "auto";
     socket = None;
     ncores = 4;
+    roots = None;
     verbose = false;
 }
 
@@ -87,7 +95,7 @@ let tag ~lib ~model ~warn ~annotator sents =
 
 
 let () =
-    let {input; model; annotator; socket; nbest;
+    let {input; model; annotator; socket; nbest; roots;
         beta; format; ncores; verbose}, _ = argparse_cfg default "depccg_en" Sys.argv in
     let {ParserConfig.model = def_model; lib} = ParserConfig.load_en () in
     let model = CCOpt.get_or ~default:def_model model in
@@ -111,7 +119,7 @@ let () =
     let res = progress_map ncores ss.seeds
             ~f:(fun s -> EnAstarParser.parse (Reader.read_proto_matrix n_cats s)
             ~cat_list ~unary_rules ~seen_rules ~cat_dict
-            ~nbest ~beta ~unary_penalty:0.1 ()) in
+            ~roots ~nbest ~beta ~unary_penalty:0.1 ()) in
     Printf.eprintf "\nExecution time: %fs\n" (Sys.time() -. t);
     EnPrinter.output_results format names attribs res
 
