@@ -1,6 +1,6 @@
 PREFIX=/usr/local
-LIBDIR=$(PREFIX)/lib/camelthorn
-SHAREDIR=$(PREFIX)/share/camelthorn
+LIBDIR=$(PREFIX)/lib/depccg
+SHAREDIR=$(PREFIX)/share/depccg
 MODELDIR=models
 
 install: lib depccgrc
