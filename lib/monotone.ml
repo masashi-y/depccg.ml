@@ -246,12 +246,8 @@ let () =
 
 open Printer
 
-(*
 let example =
-    let open Tree in
-    let open Rules in
-    let open Cat in
-    let open Attributes in
+    let open Grammar.EnglishGrammar.Notat in
     let attributes = Attributes.(of_list
         [
             Attribute.default ~pos:"DT" ();
@@ -266,7 +262,7 @@ let example =
         ]) in
     let tree = Tree.of_view (
     N (ba, s, [
-        N (ba np, [
+        N (ba, np, [
             N (fa, np_(nb), [
                 T (np_(nb) /: n, "Every");
                 N (fa, n, [
@@ -295,7 +291,6 @@ let example =
     print_endline (EnglishPrinter.show_derivation tree);
     print_endline (EnglishPrinter.show_derivation (Fix.relative_clause tree));
     print_endline (PolarizedTree.(show (polarize attributes tree)))
-*)
 
 
 let example =
