@@ -88,20 +88,6 @@ struct
         | _ -> {t with children=List.map relative_clause children}
 end
 
-module Polarity =
-struct
-    type t = Plus | Minus | Dot
-
-    let plus = Plus
-    let minus = Minus
-    let dot = Dot
-
-    let show = function
-        | Plus -> "+"
-        | Minus -> "-"
-        | Dot -> ""
-end
-
 module Direction =
 struct
     type t = Up | Down | Unknown
@@ -122,6 +108,20 @@ struct
         | _ -> unknown
 end
 
+module Polarity =
+struct
+    type t = Plus | Minus | Dot
+
+    let p = Plus
+    let m = Minus
+    let dot = Dot
+
+    let show = function
+        | Plus -> "+"
+        | Minus -> "-"
+        | Dot -> ""
+end
+
 module SemanticType =
 struct
     open Notat
@@ -132,8 +132,8 @@ struct
 
     let e = Entity
     let t = Truth
-    let (+~>) x y = Fun (x, y, Polarity.plus)
-    let (-~>) x y = Fun (x, y, Polarity.minus)
+    let (+~>) x y = Fun (x, y, Polarity.p)
+    let (-~>) x y = Fun (x, y, Polarity.m)
     let (|~>) x y = Fun (x, y, Polarity.dot)
     let (|?~>) x y z = Fun (x, y, z)
     let s = t
@@ -163,7 +163,7 @@ struct
         | `Either (x, y) -> of_category x |~> of_category y
         | `Punct _  -> noise "conj"
 
-    let rec of_leaf = function
+    let of_terminal = function
         | _, "if", _ -> (t +~> t) -~> t
         | `Fwd (`NP _, `N _), ("some" | "a" | "an"), _ -> n +~> np_plus
         | `Fwd (`NP _, `N _), ("every" | "all"), _     -> n -~> np_plus
@@ -176,6 +176,21 @@ struct
         | `Bwd (`S _, `NP _), _, "VB" -> np +~> s
         | `NP _, _, _ -> np_plus
         | c, _, _ -> of_category c
+
+    let of_nonterminal tree child_types =
+        let f (ty1, ty2) = Polarity.(function
+            | Dot, Dot -> ty1 |~> ty2
+            | Plus, Plus | Minus, Minus -> ty1 +~> ty2
+            | _ ->  ty1 -~> ty2) in
+        match Tree.view tree, child_types with
+        | N (`Unary, _, _), [types] -> types
+        | N (`FwdApp, _, _), [Fun (_, types, _); _] -> types
+        | N (`BwdApp, _, _), [_; Fun (_, types, _)] -> types
+        | N (`FwdCmp, _, _), [Fun (ty1, _, p1); Fun (_, ty2, p2)]
+        | N (`BwdCmp, _, _), [Fun (_, ty1, p1); Fun (ty2, _, p2)] -> f (ty1, ty2) (p1, p2)
+        | N (`RP, x, [T (y, _); _]), [ty1; _]
+        | N (`RP, x, [_; T (y, _)]), [_; ty1] when Cat.(x =:= y) -> ty1
+        | _ -> failwith ""
 end
 
 module PolarizedTree =
@@ -202,7 +217,7 @@ struct
             if Tree.is_terminal t then
                 pop () >>= fun attr ->
                     let pos = Attribute.pos attr in
-                    let types = SemanticType.of_leaf (cat, (String.lowercase_ascii str), pos) in
+                    let types = SemanticType.of_terminal (cat, (String.lowercase_ascii str), pos) in
                     return {
                         cat;
                         types;
@@ -211,21 +226,9 @@ struct
                     }
             else
                 mapM aux children >>= fun children ->
-                    let f (ty1, ty2) = Polarity.(function
-                        | Dot, Dot -> ty1 |~> ty2
-                        | Plus, Plus | Minus, Minus -> ty1 +~> ty2
-                        | _ ->  ty1 -~> ty2) in
                     let child_types = List.map (fun c -> c.types) children in
-                    let types = match Tree.view t, child_types with
-                        | N (`Unary, _, _), [types] -> types
-                        | N (`FwdApp, _, _), [Fun (_, types, _); _] -> types
-                        | N (`BwdApp, _, _), [_; Fun (_, types, _)] -> types
-                        | N (`FwdCmp, _, _), [Fun (ty1, _, p1); Fun (_, ty2, p2)]
-                        | N (`BwdCmp, _, _), [Fun (_, ty1, p1); Fun (ty2, _, p2)] -> f (ty1, ty2) (p1, p2)
-                        | N (`RP, x, [T (y, _); _]), [ty1; _]
-                        | N (`RP, x, [_; T (y, _)]), [_; ty1] when Cat.(x =:= y) -> ty1
-                        | _ -> failwith ""
-                    in return {
+                    let types = SemanticType.of_nonterminal t child_types in
+                    return {
                         cat;
                         types;
                         orig = t;
