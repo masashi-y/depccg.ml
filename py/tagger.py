@@ -10,6 +10,7 @@ import sys
 import chainer
 import argparse
 import subprocess
+from pathlib import Path
 
 def log(str):
     print("[tagger] %s" % str, file=sys.stderr)
@@ -131,11 +132,11 @@ def run(sentences, names, annotator, tagger, batchsize):
 
 
 def load_tagger(filepath):
-    model = os.path.join(filepath, "tagger_model")
-    with open(os.path.join(filepath, "tagger_defs.txt")) as f:
+    model = filepath / "tagger_model"
+    with open(filepath / "tagger_defs.txt") as f:
         tagger = eval(json.load(f)["model"])(filepath)
 
-    if os.path.exists(model):
+    if model.exists:
         chainer.serializers.load_npz(model, tagger)
     else:
         sys.exit("Not found: %s" % model)
@@ -143,11 +144,21 @@ def load_tagger(filepath):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("LSTM supertag tagger")
-    parser.add_argument("path", help="path to model directory")
-    parser.add_argument("--out", default="ccg.seed", help="output file path")
-    parser.add_argument("--batchsize", type=int, default=16, help="batch size")
-    parser.add_argument("--annotator", default=None,
-            choices=['spacy', 'candc'], help="add pos, lemma and entity layers")
+    parser.add_argument("path",
+            type=Path,
+            help="path to model directory")
+    parser.add_argument("--out",
+            type=Path, default="ccg.seed",
+            help="output file path")
+    parser.add_argument("--batchsize",
+            type=int,
+            default=16,
+            help="batch size")
+    parser.add_argument("--annotator",
+            default=None,
+            choices=['spacy', 'candc'],
+            help="add pos, lemma and entity layers")
+
     args = parser.parse_args()
 
     inputs = [i.strip() for i in sys.stdin]
@@ -167,6 +178,4 @@ if __name__ == '__main__':
     seeds = run(
             sentences, names, annotator, tagger, args.batchsize)
 
-    # log("writing results to : %s" % args.out)
     sys.stdout.buffer.write(seeds.SerializeToString())
-    # log("done")

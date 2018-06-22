@@ -23,13 +23,24 @@ sig
         str: string
     }
     type scored = (float * t) list
-    
+
+    type view = T of cat * string
+              | N of op * cat * view list
+              | P of t
+
     val make : cat:cat -> op:op -> children:(t list) -> t
     val terminal : cat -> string -> t
     val make_scored : ?score:float -> t -> scored
+    val is_terminal : t -> bool
     val terminals : t -> string list
     val preterminals : t -> cat list
     val length : t -> int
+    val view : t -> view
+    val view2 : t -> view
+    val of_view : view -> t
+    val left_child : t -> t
+    val right_child : t -> t
+
 end
 
 module Tree (Cat : CATEGORIES) (Rules : RULES) = 
@@ -44,6 +55,10 @@ struct
     }
     type scored = (float * t) list
 
+    type view = T of cat * string
+              | N of op * cat * view list
+              | P of t
+
     let make ~cat ~op ~children =
         {cat=cat; op=op; children=children; str=""}
 
@@ -51,6 +66,10 @@ struct
         {cat=cat; op=Rules.intro; children=[]; str=s}
 
     let make_scored ?(score=0.0) t = [(score, t)]
+
+    let is_terminal = function
+        | {children=[]} -> true
+        | _ -> false
 
     let rec terminals = function
         | {str=""; children} -> List.flatten (List.map terminals children)
@@ -61,6 +80,61 @@ struct
         | {children} -> List.flatten (List.map preterminals children)
 
     let length t = List.length (terminals t)
+
+(*
+      some    dogs
+       N/N      N
+    fa--------------
+             N
+
+==> N (`FwdApp, `N _, [
+        T (`Fwd (`N _, `N _), "some");
+        T (`N _, "dogs")
+    ])
+*)
+    let view {cat; op; children} =
+        let cats = List.map (
+            fun {cat; op; str} -> T (cat, str)) children in
+        N (op, cat, cats)
+
+(*
+      some    dogs     run
+       N/N      N     S\N
+    fa--------------
+             N
+    ba---------------------
+                S
+
+==> N (`BwdApp, `S _, [ 
+        N (`FwdApp, `N _, [
+            T (`Fwd (`N _, `N _), "some");
+            T (`N _, "dogs")
+        ]);
+        T (`Bwd (`S _, `N), "run")
+    ])
+*)
+    let view2 {cat; op; children} =
+        let subview = List.map (
+            fun {op; cat; children} ->
+            let subsub = List.map (
+                fun {op; cat; str} ->
+                    T (cat, str)) children in
+            N (op, cat, subsub)) children in
+        N (op, cat, subview)
+
+    let rec of_view = function
+        | T (cat, str) -> terminal cat str
+        | N (op, cat, subviews) ->
+            make ~cat ~op ~children:(List.map of_view subviews)
+        | P parse -> parse
+
+    let left_child = function
+        | {children=[c1; _]} -> c1
+        | _ -> invalid_arg "left_child"
+
+    let right_child = function
+        | {children=[_; c2]} -> c2
+        | _ -> invalid_arg "right_child"
 end
 
 
@@ -212,9 +286,7 @@ type en_rules = [ `FwdCmp
                 | `ParentDirect   (* ParentheticalDirectSpeech *)
                 | base_rules]
 
-module EnglishGrammar : GRAMMAR
-    with type feature = en_feature
-    and type rules = en_rules =
+module EnglishGrammar =
 struct
     type feature = en_feature
     module Feature = EnglishFeature
@@ -226,16 +298,10 @@ struct
     module Rules = struct
         type t = rules
 
-        let to_list = [`FwdApp;
-                       `BwdApp;
-                       `FwdCmp;
-                       `BwdCmp;
-                       `GenFwdCmp;
-                       `GenBwdCmp;
-                       `Conj;
-                       `RP;
-                       `CommaVPtoADV;
-                       `ParentDirect]
+        let to_list =
+            [`FwdApp; `BwdApp; `FwdCmp; `BwdCmp;
+           `GenFwdCmp; `GenBwdCmp; `Conj; `RP;
+           `CommaVPtoADV; `ParentDirect]
 
         let intro = `Intro
         let unary = `Unary
@@ -256,16 +322,30 @@ struct
 
     open Cat
 
-    let possible_root_cats = [`S `DCL;
-                              `S `WQ;
-                              `S `Q;
-                              `S `QEM;
-                              `NP `None]
+    module Notat =
+    struct
+        include EnglishCategories.Notat
+        include EnglishFeature.Notat
 
+        let lex = `Intro
+        let fa = `FwdApp
+        let ba = `BwdApp
+        let un = `Unary
+        let fc = `FwdCmp
+        let bx = `BwdCmp
+        let gfc = `GenFwdCmp
+        let gbx = `GenBwdCmp
+        let conj = `Conj
+        let rp = `RP
+    end
+
+    open Notat
+
+    let possible_root_cats = [s_(dcl); s_(wq); s_(q); s_(qem); np]
 
     (* S[dcl] S[em]\S[em] --> S[em] *)
     let backward_application = function
-        | `S `DCL, `Bwd (`S `EM, `S `EM) -> [`S `EM]
+        | `S `DCL, `Bwd (`S `EM, `S `EM) -> [s_(em)]
         | x, `Bwd (y, x') when x =:= x' -> [unify (if y = x' then x else y) x' x]
         | _ -> []
 
@@ -335,6 +415,7 @@ struct
     let is_seen seen_rules (c1, c2) =
         let prep = Cat.remove_some_feat [`Var; `Nb] in
         Hashtbl.mem seen_rules (prep c1, prep c2)
+
 end
 
 type ja_rules = [ `FwdCmp
@@ -348,9 +429,7 @@ type ja_rules = [ `FwdCmp
                 | `Conj
                 | base_rules]
 
-module JapaneseGrammar : GRAMMAR
-    with type feature = ja_feature
-    and type rules = ja_rules =
+module JapaneseGrammar =
 struct
     type feature = ja_feature
     module Feature = JapaneseFeature
@@ -363,17 +442,10 @@ struct
 
         type t = rules
 
-        let to_list = [`FwdApp;
-                       `BwdApp;
-                       `FwdCmp;
-                       `BwdCmp;
-                       `GenBwdCmp2;
-                       `GenBwdCmp3;
-                       `GenBwdCmp4;
-                       `CrsFwdCmp1;
-                       `CrsFwdCmp2;
-                       `CrsFwdCmp3;
-                       `Conj]
+        let to_list =
+            [`FwdApp; `BwdApp; `FwdCmp; `BwdCmp;
+           `GenBwdCmp2; `GenBwdCmp3; `GenBwdCmp4;
+           `CrsFwdCmp1; `CrsFwdCmp2; `CrsFwdCmp3; `Conj]
 
         let intro = `Intro
         let unary = `Unary
@@ -395,23 +467,37 @@ struct
 
     open Cat
 
-    let possible_root_cats =
-        [`NP (`NPf (`NC, `NM, `F));
-         `NP (`NPf (`NC, `NM, `T));
-         `S  (`Sf (`NM, `ATTR, `T));
-         `S  (`Sf (`NM, `BASE, `F));
-         `S  (`Sf (`NM, `BASE, `T));
-         `S  (`Sf (`NM, `CONT, `F));
-         `S  (`Sf (`NM, `CONT, `T));
-         `S  (`Sf (`NM, `DA,   `F));
-         `S  (`Sf (`NM, `DA,   `T));
-         `S  (`Sf (`NM, `HYP,  `T));
-         `S  (`Sf (`NM, `IMP,  `F));
-         `S  (`Sf (`NM, `IMP,  `T));
-         `S  (`Sf (`NM, `R,    `T));
-         `S  (`Sf (`NM, `S,    `T));
-         `S  (`Sf (`NM, `STEM, `F));
-         `S  (`Sf (`NM, `STEM, `T)) ]
+    module Notat =
+    struct
+        include JapaneseFeatureValue.Notat
+        include JapaneseCategories.Notat
+
+        let lex = `Intro
+        let fa = `FwdApp
+        let ba = `BwdApp
+        let un = `Unary
+        let fc = `FwdCmp
+        let bc = `BwdCmp
+        let gbc2 = `GenBwdCmp2
+        let gbc3 = `GenBwdCmp3
+        let gbc4 = `GenBwdCmp4
+        let xfc1 = `CrsFwdCmp1
+        let xfc2 = `CrsFwdCmp2
+        let xfc3 = `CrsFwdCmp3
+        let conj = `Conj
+    end
+
+    open Notat
+
+    let possible_root_cats = [
+        np_(nc, nm, f);  np_(nc, nm, t);
+        s_(nm, attr, t); s_(nm, base, f);
+        s_(nm, base, t); s_(nm, cont, f);
+        s_(nm, cont, t); s_(nm, da, f);
+        s_(nm, da, t);   s_(nm, hyp, t);
+        s_(nm, imp, f);  s_(nm, imp, t);
+        s_(nm, r, t);    s_(nm, s, t);
+        s_(nm, stem, f); s_(nm, stem, t) ]
 
     let conjoin = function
         | x, y when List.mem x possible_root_cats

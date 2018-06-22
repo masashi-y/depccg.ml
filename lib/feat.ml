@@ -8,6 +8,7 @@ sig
     val none : t
     val equal : t * t -> bool
     val show : t -> string
+    val of_string : string -> t
     val parse : string list -> t * string list
     val unify : t * t -> t option
     val is_var : t -> bool
@@ -23,7 +24,7 @@ type en_feature = [ `None | `Nb | `Var
                   | `THR | `TO | `WQ | `CONJ ]
 
 
-module EnglishFeature : FEATURE with type t = en_feature =
+module EnglishFeature =
 struct
     type t = en_feature
 
@@ -50,27 +51,25 @@ struct
         | `THR   -> "[thr]"  | `TO    -> "[to]"
         | `WQ    -> "[wq]"   | `CONJ  -> "[conj]"
 
+    let of_string = function
+        | "nb"   -> `Nb     | "X"    -> `Var
+        | "adj"  -> `ADJ    | "as"   -> `AS
+        | "asup" -> `ASUP   | "b"    -> `B
+        | "bem"  -> `BEM    | "dcl"  -> `DCL
+        | "em"   -> `EM     | "expl" -> `EXPL
+        | "for"  -> `FOR    | "frg"  -> `FRG
+        | "intj" -> `INTJ   | "inv"  -> `INV
+        | "ng"   -> `NG     | "num"  -> `NUM
+        | "poss" -> `POSS   | "pss"  -> `PSS
+        | "pt"   -> `PT     | "q"    -> `Q
+        | "qem"  -> `QEM    | "thr"  -> `THR
+        | "to"   -> `TO     | "wq"   -> `WQ
+        | "conj" -> `CONJ
+        | feat -> invalid_arg feat
 
     let parse = function
-        | "[" :: feat :: "]" :: rest
-            -> let feat' = match feat with
-                | "nb"   -> `Nb     | "X"    -> `Var
-                | "adj"  -> `ADJ    | "as"   -> `AS
-                | "asup" -> `ASUP   | "b"    -> `B
-                | "bem"  -> `BEM    | "dcl"  -> `DCL
-                | "em"   -> `EM     | "expl" -> `EXPL
-                | "for"  -> `FOR    | "frg"  -> `FRG
-                | "intj" -> `INTJ   | "inv"  -> `INV
-                | "ng"   -> `NG     | "num"  -> `NUM
-                | "poss" -> `POSS   | "pss"  -> `PSS
-                | "pt"   -> `PT     | "q"    -> `Q
-                | "qem"  -> `QEM    | "thr"  -> `THR
-                | "to"   -> `TO     | "wq"   -> `WQ
-                | "conj" -> `CONJ
-                | _ -> invalid_arg feat
-               in (feat', rest)
+        | "[" :: feat :: "]" :: rest -> (of_string feat, rest)
         | rest -> (`None, rest)
-
 
     let unify = function
         | (`None | `Var), (`None | `Var) -> None
@@ -81,6 +80,64 @@ struct
     let is_var = function
         | `Var -> true
         | _ -> false
+
+    module type NOTAT =
+    sig
+        val nb : t
+        val var : t
+        val adj : t
+        val as_ : t
+        val asup : t
+        val b : t
+        val bem : t
+        val dcl : t
+        val em : t
+        val expl : t
+        val for_ : t
+        val frg : t
+        val intj : t
+        val inv : t
+        val ng : t
+        val num : t
+        val poss : t
+        val pss : t
+        val pt : t
+        val q : t
+        val qem : t
+        val thr : t
+        val to_ : t
+        val wq : t
+        val conj : t
+    end
+
+    module Notat =
+    struct
+        let nb = `Nb
+        let var = `Var
+        let adj = `ADJ
+        let as_ = `AS
+        let asup = `ASUP
+        let b = `B
+        let bem = `BEM
+        let dcl = `DCL 
+        let em = `EM 
+        let expl = `EXPL 
+        let for_ = `FOR 
+        let frg = `FRG
+        let intj = `INTJ 
+        let inv = `INV 
+        let ng = `NG 
+        let num = `NUM
+        let poss = `POSS 
+        let pss = `PSS 
+        let pt = `PT 
+        let q = `Q 
+        let qem = `QEM
+        let thr = `THR 
+        let to_ = `TO 
+        let wq = `WQ 
+        let conj = `CONJ
+    end
 end
 
 
@@ -152,10 +209,63 @@ struct
         | (`X1 | `X2 | `X3) -> true
         | _ -> false
 
+    module type NOTAT =
+    sig
+        val x1 : t
+        val x2 : t
+        val x3 : t
+        val ga : t
+        val nc : t
+        val ni : t
+        val o : t
+        val to_ : t
+        val adn : t
+        val adv : t
+        val nm : t
+        val r : t
+        val s : t
+        val imp : t
+        val attr : t
+        val base : t
+        val cont : t
+        val hyp : t
+        val stem : t
+        val da : t
+        val neg : t
+        val t : t
+        val f : t
+    end
+
+    module Notat =
+    struct
+        let x1 = `X1
+        let x2 = `X2
+        let x3 = `X3
+        let ga = `GA
+        let nc = `NC
+        let ni = `NI
+        let o = `O
+        let to_ = `TO
+        let adn = `ADN
+        let adv = `ADV
+        let nm = `NM
+        let r = `R
+        let s = `S
+        let imp = `IMP
+        let attr = `ATTR
+        let base = `BASE
+        let cont = `CONT
+        let hyp = `HYP
+        let stem = `STEM
+        let da = `DA
+        let neg = `NEG 
+        let t = `T
+        let f = `F
+    end
 end
 
 
-module JapaneseFeature : FEATURE with type t = ja_feature =
+module JapaneseFeature =
 struct
     module V = JapaneseFeatureValue
 
@@ -178,16 +288,16 @@ struct
         | `None -> ""
 
 
-    let parse =
-        let s_f f1 f2 f3  = `Sf (V.parse f1, V.parse f2, V.parse f3)
-        and np_f f1 f2 f3 = `NPf (V.parse f1, V.parse f2, V.parse f3)
-        in function
-        | "[" :: feat :: "]" :: rest
-            -> let feat' = begin match String.sub feat 0 3 with
-                | "cas" -> Scanf.sscanf feat "case=%s@,mod=%s@,fin=%s" np_f
-                | "mod" -> Scanf.sscanf feat "mod=%s@,form=%s@,fin=%s" s_f
-                | _ -> invalid_arg (!%"parse: %s" feat)
-               end in (feat', rest)
+    let of_string str = 
+        let s_f f1 f2 f3  = `Sf (V.parse f1, V.parse f2, V.parse f3) in
+        let np_f f1 f2 f3 = `NPf (V.parse f1, V.parse f2, V.parse f3) in
+        match String.sub str 0 3 with
+        | "cas" -> Scanf.sscanf str "case=%s@,mod=%s@,fin=%s" np_f
+        | "mod" -> Scanf.sscanf str "mod=%s@,form=%s@,fin=%s" s_f
+        | _ -> invalid_arg (!%"parse: %s" str)
+
+    let parse = function
+        | "[" :: feat :: "]" :: rest -> (of_string feat, rest)
         | rest -> (`None, rest)
 
 

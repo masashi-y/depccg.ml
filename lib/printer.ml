@@ -29,8 +29,6 @@ sig
 
     val show_html_trees_separated : string option list -> Tree.scored list -> unit
 
-    val sample_tree : Tree.t
-
     val output_results : string -> string option list -> Tree.scored list -> unit
 end
 
@@ -67,10 +65,6 @@ struct
                    return (String.concat "\n" cs)) in
         (AttributeM.eval (aux tree) (1, attrs)) ^ "\n"
 
-    let is_terminal = function
-        | {children=[]} -> true
-        | _ -> false
-
     let rec show_ptb depth = function
         | {cat; str; children=[]}
             -> !%"(%s %s)" (Cat.show cat) str
@@ -102,8 +96,7 @@ struct
                    let pad = max 0 ((rwidth - lwidth - (length (Cat.show cat))) / 2 + lwidth) in
                    Printf.bprintf buf "%s%s%s\n%s%s\n" (space lwidth) (make (rwidth - lwidth) '-')
                            (Rules.show op) (space pad) (Cat.show cat);
-                   rwidth
-        in
+                   rwidth in
         let ws = terminals tree in
         let cs = List.map Cat.show (preterminals tree) in
         let (cs', ws') = terminal_string (List.combine cs ws) in
@@ -135,6 +128,8 @@ struct
                              (!% cstr "/") ^ (show_html_cat y) ^ (!% cstr ")")
             | `Bwd (x, y) -> (!% cstr "(") ^ (show_html_cat x) ^
                              (!% cstr "\\") ^ (show_html_cat y) ^ (!% cstr ")")
+            | `Either (x, y) -> (!% cstr "(") ^ (show_html_cat x) ^
+                             (!% cstr "|") ^ (show_html_cat y) ^ (!% cstr ")")
 
         in
         let rec show_html_tree = function
@@ -229,15 +224,6 @@ struct
 </tr>" i fname fname sent) filenames));
   Printf.eprintf "write results to directory: %s\n" dir
 
-    let sample_tree = let open Cat in
-                make ~cat:s ~op:Rules.intro ~children:
-                [terminal np "Hanako";
-                make ~cat:(s |: np) ~op:Rules.intro ~children:
-                         [terminal ((s |: np) /: np) "beats";
-                          terminal np                "Taro"
-                         ]
-                ]
-
     let output_results fmt names res =
         let f printfun i =
             List.iter (fun (_, t) -> p "ID=%i\n%s\n" i (printfun t)) in
@@ -263,6 +249,7 @@ module EnglishPrinter = struct
     open Tree
     open Rules
     open Cat
+    open Notat
 
     module Prolog : sig
         val show : int -> Attributes.t -> Tree.t -> string
@@ -299,6 +286,7 @@ module EnglishPrinter = struct
             | `PP f -> show_atom "pp" f
             | `Fwd (x, y) -> !%"(%s/%s)" (f x) (f y)
             | `Bwd (x, y) -> !%"(%s\\%s)" (f x) (f y)
+            | `Either (x, y) -> !%"(%s|%s)" (f x) (f y)
             | `Punct s -> begin match s with
                 | "." -> "period"
                 | "," -> "comma"
@@ -373,7 +361,7 @@ module EnglishPrinter = struct
         let show_xml_rule_type tree op = match tree with
             | {cat; children=[{cat=cat'}]}
                 when Cat.is_type_raised cat &&
-                (cat' =:= Cat.np || cat' =:= Cat.pp)
+                (cat' =:= np || cat' =:= pp)
                 -> "tr"
             | {children=[_]} -> "lex"
             | {children=[{cat};_]} -> begin match op with
@@ -451,3 +439,16 @@ module EnglishPrinter = struct
         | "prolog" -> show_prolog attribs res
         | _ -> invalid_arg (!%"Not accepted output format: %s\n" fmt)
 end
+
+let sample_tree =
+    let open EnglishGrammar in
+    let open Notat in
+    Tree.of_view
+        (N (lex, s, [
+            T (np, "Hanako");
+            N (lex, (s |: np), [
+                T ((s |: np) /: np, "beats");
+                T              (np, "Taro" )
+            ])
+        ]))
+

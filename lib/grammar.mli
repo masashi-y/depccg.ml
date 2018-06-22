@@ -26,13 +26,23 @@ sig
         str: string
     }
     type scored = (float * t) list
-    
+
+    type view = T of cat * string
+              | N of op * cat * view list
+              | P of t
+
     val make : cat:cat -> op:op -> children:(t list) -> t
     val terminal : cat -> string -> t
     val make_scored : ?score:float -> t -> scored
+    val is_terminal : t -> bool
     val terminals : t -> string list
     val preterminals : t -> cat list
     val length : t -> int
+    val view : t -> view
+    val view2 : t -> view
+    val of_view : view -> t
+    val left_child : t -> t
+    val right_child : t -> t
 end
 
 
@@ -71,12 +81,56 @@ type base_rules = [ `FwdApp | `BwdApp | `Intro | `Unary]
 type en_rules = [ `FwdCmp | `BwdCmp | `GenFwdCmp | `GenBwdCmp
                 | `Conj | `RP | `CommaVPtoADV | `ParentDirect | base_rules]
 
-module EnglishGrammar : GRAMMAR with type feature = en_feature
-                                and type rules = en_rules
+
+module EnglishGrammar :
+sig
+    include GRAMMAR with type feature = en_feature
+                    and type rules = en_rules
+
+    module Notat :
+    sig
+        include EnglishFeature.NOTAT
+        include EnglishCategories.NOTAT
+
+        val lex : rules
+        val fa : rules
+        val ba : rules
+        val un : rules
+        val fc : rules
+        val bx : rules
+        val gfc : rules
+        val gbx : rules
+        val conj : rules
+        val rp : rules
+    end
+end
 
 type ja_rules = [ `FwdCmp | `BwdCmp | `GenBwdCmp2 | `GenBwdCmp3
                 | `GenBwdCmp4 | `CrsFwdCmp1 | `CrsFwdCmp2
                 | `CrsFwdCmp3 | `Conj | base_rules]
 
-module JapaneseGrammar : GRAMMAR with type feature = ja_feature
-                                 and type rules = ja_rules
+module JapaneseGrammar :
+sig
+    include GRAMMAR with type feature = ja_feature
+                    and type rules = ja_rules
+
+    module Notat :
+    sig
+        include JapaneseFeatureValue.NOTAT
+        include JapaneseCategories.NOTAT
+
+        val lex : rules
+        val fa : rules
+        val ba : rules
+        val un : rules
+        val fc : rules
+        val bc : rules
+        val gbc2 : rules
+        val gbc3 : rules
+        val gbc4 : rules
+        val xfc1 : rules
+        val xfc2 : rules
+        val xfc3 : rules
+        val conj : rules
+    end
+end
