@@ -33,11 +33,9 @@ type matrix = float Matrix.t
 
 val read_proto_matrix : int -> Ccg_seed_types.ccgseed -> string list * matrix * matrix
 
-
+open Grammar
 module CCGBank :
 sig
-    open Grammar
-
     open EnglishGrammar
 
     val parse_line : file -> Attributes.t * Tree.t
@@ -46,3 +44,8 @@ sig
     val parse_file : file -> string option list * Attributes.t list * Tree.t list
 end
 
+module CAndCXML :
+sig
+    open EnglishGrammar
+    val parse_file : file -> Tree.t list * Attributes.t list
+end

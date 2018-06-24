@@ -235,12 +235,13 @@ struct
             (t, Attributes.rev attr)
         | _ -> failwith "unknown xml node in candc"
 
-    let parse file = match Xml.parse_file file with
+    let parse_file file =
+        match Xml.parse_file file with
         | Xml.Element ("candc", _, nodes) ->
-                let f node (ts, attrs) =
-                    let t, attr = parse_tree node in
-                    (t :: ts, attr :: attrs) in
-                List.fold_right f nodes ([], [])
+            let f node (ts, attrs) =
+                let t, attr = parse_tree node in
+                (t :: ts, attr :: attrs) in
+            List.fold_right f nodes ([], [])
         | _ -> failwith "unknown xml node in candc"
 
 end
@@ -255,8 +256,9 @@ let () =
      (List.map Grammar.EnglishGrammar.Tree.make_scored parses)
 *)
 
+(*
 let () =
-    let trees, attrs = CAndCXML.parse "res.xml" in
+    let trees, attrs = CAndCXML.parse_file "res.xml" in
     Printer.EnglishPrinter.output_results "xml" [] attrs
      (List.map Grammar.EnglishGrammar.Tree.make_scored trees)
-
+*)
