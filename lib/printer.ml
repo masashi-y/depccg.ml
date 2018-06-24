@@ -40,13 +40,13 @@ struct
 
     let show_tree attrs tree =
         let rec aux = AttributeM.(function
-            | {cat; str; children=[]}
-                -> pop () >>= fun attr ->
-                   let cat = Cat.show cat in
-                   let pos = Attribute.pos ~def:"POS" attr in
-                   return (!%"(<L %s %s %s %s %s>)" cat pos pos str cat)
-            | {cat; children}
-                -> mapM aux children >>= fun cs ->
+            | {cat; str; children=[]} ->
+               pop () >>= fun attr ->
+               let cat = Cat.show cat in
+               let pos = Attribute.pos ~def:"POS" attr in
+               return (!%"(<L %s %s %s %s %s>)" cat pos pos str cat)
+            | {cat; children} ->
+                   mapM aux children >>= fun cs ->
                    let w = String.concat " " cs in
                    let n_child = List.length children in
                    let head_is_left = 0 in     (* do not care *)
@@ -55,21 +55,20 @@ struct
 
     let show_conll_like attrs tree =
         let rec aux = AttributeM.(function
-            | {cat; str; children=[]}
-                -> popi () >>= fun (i, attr) ->
+            | {cat; str; children=[]} ->
+                   popi () >>= fun (i, attr) ->
                    let cat = Cat.show cat in
                    let pos = Attribute.pos ~def:"POS" attr in
                    return (!%"%i\t%s\t_\t%s\t%s\t_\t_\t_\t_\t%s" i str pos pos cat)
-            | {cat; children}
-                -> mapM aux children >>= fun cs ->
+            | {cat; children} ->
+                   mapM aux children >>= fun cs ->
                    return (String.concat "\n" cs)) in
         (AttributeM.eval (aux tree) (1, attrs)) ^ "\n"
 
     let rec show_ptb depth = function
-        | {cat; str; children=[]}
-            -> !%"(%s %s)" (Cat.show cat) str
-        | {cat; children}
-            -> let w = String.concat " " (List.map (show_ptb (depth+1)) children) in
+        | {cat; str; children=[]} -> !%"(%s %s)" (Cat.show cat) str
+        | {cat; children} ->
+               let w = String.concat " " (List.map (show_ptb (depth+1)) children) in
                !%"(%s %s)" (Cat.show cat) w
 
     let show_derivation tree =
@@ -356,13 +355,12 @@ module EnglishPrinter = struct
 
     module XML : sig
         (* TODO *)
-        val show : Attributes.t -> Tree.t -> string
+        val show : Attributes.t -> Tree.t -> Xml.xml
     end = struct
-        let show_xml_rule_type tree op = match tree with
-            | {cat; children=[{cat=cat'}]}
-                when Cat.is_type_raised cat &&
-                (cat' =:= np || cat' =:= pp)
-                -> "tr"
+        let show_xml_rule_type tree op =
+            match Tree.match_with_type_raised tree with
+            | Some _ -> "tr"
+            | None -> match tree with
             | {children=[_]} -> "lex"
             | {children=[{cat};_]} -> begin match op with
                 | `FwdApp       -> "fa"
@@ -382,30 +380,31 @@ module EnglishPrinter = struct
 
         let show attr tree = 
             let open Attributes in
-            let rec f tree = AttributeM.(match tree with
-                | {cat; str; children=[]} -> popi () >>= fun (start, att) ->
-                        let lemma = Attribute.lemma ~def:"X" att in
-                        let pos = Attribute.pos ~def:"X" att in
-                        let entity = Attribute.entity ~def:"X" att in
-                        return (!%
-                "<lf start=\"%d\" span=\"1\" word=\"%s\" lemma=\"%s\" pos=\"%s\" entity=\"%s\" cat=\"%s\" />"
-                    start (escape_html_simple str) (escape_html_simple lemma) pos entity (Cat.show cat))
-                | {cat; op; children} -> 
-                        let rule_type = show_xml_rule_type tree op in
-                        mapM f children >>= fun children ->
-                        return (!%"<rule type=\"%s\" cat=\"%s\">\n%s\n</rule>"
-                        rule_type (Cat.show cat) (String.concat "\n" children))
-            )
-            in AttributeM.eval (f tree) (0, attr)
+            let rec f = AttributeM.(function
+                | {cat; str; children=[]} -> 
+                    popi () >>= fun (start, att) ->
+                    return @@ Xml.Element ("lf", [
+                        ("start", string_of_int start);
+                        ("word",  str);
+                        ("lemma", Attribute.lemma ~def:"X" att);
+                        ("pos",   Attribute.pos ~def:"X" att);
+                        ("entity", Attribute.entity ~def:"X" att);
+                        ("cat", Cat.show cat)], [])
+                | {cat; op; children} as tree -> 
+                    mapM f children >>= fun children ->
+                    return @@ Xml.Element ("rule", 
+                        [("type", show_xml_rule_type tree op);
+                         ("cat", Cat.show cat)], children)
+            ) in
+            AttributeM.eval (f tree) (0, attr)
     end
 
         let show_xml_trees attribs tss =
-            let f attr ts = match ts with
-                | (_, t) :: _ -> !%"<ccg>\n%s\n</ccg>" (XML.show attr t)
+            let f attr = function
+                | (_, t) :: _ -> Xml.Element ("ccg", [], [XML.show attr t])
                 | _ -> invalid_arg "failed in show_xml_trees"
-            in (!%"<?xml version=\"1.0\" encoding=\"UTF-8\"?>
-<?xml-stylesheet type=\"text/xsl\" href=\"candc.xml\"?>
-<candc>\n%s\n</candc>" (String.concat "\n\n" @@ List.map2 f attribs tss))
+            in (Xml.to_string_fmt (
+                Xml.Element ("candc", [], List.map2 f attribs tss)))
 
     let show_prolog attribs trees = 
         let warn = let did = ref false in fun () ->

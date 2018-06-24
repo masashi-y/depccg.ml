@@ -30,7 +30,7 @@ module EnglishPrinter : sig
     end
 
     module XML : sig
-        val show : Attributes.t -> Tree.t -> string
+        val show : Attributes.t -> Tree.t -> Xml.xml
     end
 
     val show_tree : Attributes.t -> Tree.t -> string

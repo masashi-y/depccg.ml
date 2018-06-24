@@ -144,19 +144,19 @@ module CCGBank = struct
                | [`Close x] -> (Attributes.of_list @@ List.rev poss), x
                | _ -> error ()
             end
-            | "(" :: "L" :: cat :: pos :: _ :: word :: _ :: ")" :: rest
-                -> let n = Tree.terminal (Cat.parse cat) word in
-                   parse' (`Close n :: stack) (Attribute.default ~pos () :: poss) rest
-            | "(" :: "T" :: cat :: _ :: _ :: rest
-                -> let n children = Tree.make ~cat:(Cat.parse cat) ~op:`Intro ~children in
-                    parse' (`Open n :: stack) poss rest
+            | "(" :: "L" :: cat :: pos :: _ :: word :: _ :: ")" :: rest ->
+               let n = Tree.terminal (Cat.parse cat) word in
+               parse' (`Close n :: stack) (Attribute.default ~pos () :: poss) rest
+            | "(" :: "T" :: cat :: _ :: _ :: rest ->
+                let n children = Tree.make ~cat:(Cat.parse cat) ~op:`Intro ~children in
+                parse' (`Open n :: stack) poss rest
             | ")" :: rest -> begin match stack with
-                | `Close l2 :: `Close l1 :: `Open t :: ss
-                    -> let n = t [l1; l2] in
-                       parse' (`Close n :: ss) poss rest
-                | `Close l :: `Open t :: ss
-                    -> let n = t [l] in
-                       parse' (`Close n :: ss) poss rest
+                | `Close l2 :: `Close l1 :: `Open t :: ss ->
+                   let n = t [l1; l2] in
+                   parse' (`Close n :: ss) poss rest
+                | `Close l :: `Open t :: ss ->
+                   let n = t [l] in
+                   parse' (`Close n :: ss) poss rest
                 | _ -> error ()
             end
             | _ -> error () in
@@ -177,6 +177,73 @@ module CCGBank = struct
         in aux ([], [], []) (read_lines file)
 end
 
+module CAndCXML =
+struct
+    open Grammar
+    open EnglishGrammar
+
+    let parse_type = function
+        | "fa"   -> `FwdApp
+        | "ba"   -> `BwdApp
+        | "fc"   -> `FwdCmp
+        | "bx"   -> `BwdCmp
+        | "gfc"  -> `GenFwdCmp
+        | "gbx"  -> `GenBwdCmp
+        | "conj" -> `Conj
+        | "tr" | "lex" -> `Unary
+        | "rp" | "lp" -> `RP
+        | s -> failwith (!%"unknown type in ccg %s" s)
+
+    let rec parse_terminal xml_node =
+        let f (attr, cat, word) = function
+            | ("lemma",  v) -> (Attribute.update attr (`Lemma  v), cat, word)
+            | ("pos",    v) -> (Attribute.update attr (`Pos    v), cat, word)
+            | ("chunk",  v) -> (Attribute.update attr (`Chunk  v), cat, word)
+            | ("entity", v) -> (Attribute.update attr (`Entity v), cat, word)
+            | ("cat",    v) -> (attr, Some (EnglishCategories.parse v), word)
+            | ("word",   v) -> (attr, cat, Some v)
+            | _ -> (attr, cat, word) in
+        Xml.attribs xml_node |>
+        List.fold_left f (Attribute.default (), None, None) |> AttributeM.(function
+            | attr, Some cat, Some word ->
+                push attr >>= fun () ->
+                    return @@ Tree.terminal cat word
+            | _ -> failwith "failed to parse terminal node")
+
+    and parse_non_terminal xml_node =
+        let f (cat, op) = function
+            | ("cat",  v) -> (Some (EnglishCategories.parse v), op)
+            | ("type", v) -> (cat, Some v)
+            | _ -> (cat, op) in
+        Xml.attribs xml_node |>
+        List.fold_left f (None, None) |> AttributeM.(function
+            | (Some cat, Some op) ->
+                parse_type op |> fun op ->
+                mapM parse_node (Xml.children xml_node) >>= fun children ->
+                    return @@ Tree.make ~cat ~op ~children
+            | _ -> failwith "failed to parse non-terminal node")
+
+    and parse_node xml_node =
+        Xml.tag xml_node |> function
+        | "lf"   -> parse_terminal xml_node
+        | "rule" -> parse_non_terminal xml_node
+        | s -> failwith (!%"unknown xml node in ccg: %s" s)
+
+    let parse_tree = function
+        | Xml.Element ("ccg", _, [node]) ->
+            let t, attr = AttributeM.run (parse_node node) (Attributes.default ()) in
+            (t, Attributes.rev attr)
+        | _ -> failwith "unknown xml node in candc"
+
+    let parse file = match Xml.parse_file file with
+        | Xml.Element ("candc", _, nodes) ->
+                let f node (ts, attrs) =
+                    let t, attr = parse_tree node in
+                    (t :: ts, attr :: attrs) in
+                List.fold_right f nodes ([], [])
+        | _ -> failwith "unknown xml node in candc"
+
+end
 (*
 let () =
     let paths = read_lines "path" in
@@ -184,6 +251,12 @@ let () =
         let name, parse = CCGBank.parse_file p in
         (name @ names, parse @ parses)) paths ([], []) in
     let attribs = List.map (fun _ -> [None]) names in
-    Printer.EnglishPrinter.output_results "htmls"  names attribs
+    Printer.EnglishPrinter.output_results "htmls" names attribs
      (List.map Grammar.EnglishGrammar.Tree.make_scored parses)
 *)
+
+let () =
+    let trees, attrs = CAndCXML.parse "res.xml" in
+    Printer.EnglishPrinter.output_results "xml" [] attrs
+     (List.map Grammar.EnglishGrammar.Tree.make_scored trees)
+

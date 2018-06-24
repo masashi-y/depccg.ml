@@ -5,6 +5,7 @@ module Cat = Grammar.EnglishGrammar.Cat
 module Rules = Grammar.EnglishGrammar.Rules
 module Tree = Grammar.EnglishGrammar.Tree
 module Notat = Grammar.EnglishGrammar.Notat
+open Attributes
 
 module Fix =
 struct
@@ -86,56 +87,29 @@ struct
                         P c2
                     ]) ]) ]))
         | _ -> {t with children=List.map relative_clause children}
-end
 
-module Direction =
-struct
-    type t = Up | Down | Unknown
-
-    let up = Up
-    let down = Down
-    let unknown = Unknown
-
-    let rec show = function
-        | Up -> "↑" 
-        | Down -> "↓"
-        | Unknown -> "?"
-
-    let of_word = function
-        | "who" | "that" | "which" -> up
-        | "and" | "or" -> up
-        | "but" -> down
-        | _ -> unknown
-end
-
-module Polarity =
-struct
-    type t = Plus | Minus | Dot
-
-    let p = Plus
-    let m = Minus
-    let dot = Dot
-
-    let show = function
-        | Plus -> "+"
-        | Minus -> "-"
-        | Dot -> ""
+    let apply t =
+        t |> most |> relative_clause
 end
 
 module SemanticType =
 struct
     open Notat
+
+    type polarity = Plus | Minus | Dot
     type t = Entity
            | Truth
-           | Fun of t * t * Polarity.t
+           | Fun of t * t * polarity
            | Noise of string
 
     let e = Entity
     let t = Truth
-    let (+~>) x y = Fun (x, y, Polarity.p)
-    let (-~>) x y = Fun (x, y, Polarity.m)
-    let (|~>) x y = Fun (x, y, Polarity.dot)
-    let (|?~>) x y z = Fun (x, y, z)
+    let (+~>) x y = Fun (x, y, Plus)
+    let (-~>) x y = Fun (x, y, Minus)
+    let (|~>) x y = Fun (x, y, Dot)
+    let (?~>) = function
+        | Fun (_, _, x) -> x
+        | _ -> Dot
     let s = t
     let n = e |~> t
     let np = n |~> t
@@ -146,11 +120,16 @@ struct
         | Fun (x, y, _) -> Fun (x, y, p)
         | _ -> x
 
+    let polarity_show = function
+        | Plus -> "+"
+        | Minus -> "-"
+        | Dot -> ""
+
     let rec show = function
         | Entity -> "e"
         | Truth  -> "t"
         | Fun (x, y, polarity) ->
-                !%"(%s, %s%s)" (show x) (Polarity.show polarity) (show y)
+                !%"(%s, %s%s)" (show x) (polarity_show polarity) (show y)
         | Noise s -> !%"**(%s)" s
 
     let rec of_category = function
@@ -177,11 +156,11 @@ struct
         | `NP _, _, _ -> np_plus
         | c, _, _ -> of_category c
 
-    let of_nonterminal tree child_types =
-        let f (ty1, ty2) = Polarity.(function
+    let of_non_terminal tree child_types =
+        let f (ty1, ty2) = function
             | Dot, Dot -> ty1 |~> ty2
             | Plus, Plus | Minus, Minus -> ty1 +~> ty2
-            | _ ->  ty1 -~> ty2) in
+            | _ ->  ty1 -~> ty2 in
         match Tree.view tree, child_types with
         | N (`Unary, _, _), [types] -> types
         | N (`FwdApp, _, _), [Fun (_, types, _); _] -> types
@@ -193,9 +172,8 @@ struct
         | _ -> failwith ""
 end
 
-module PolarizedTree =
+module OrderTypedTree =
 struct
-    open Attributes
     open SemanticType
     type t = {
         cat: Cat.t;
@@ -212,12 +190,13 @@ struct
             !%"%s%s, %s, %s\n%s" indent (Cat.show cat) (SemanticType.show types) str children in
         aux 0 t
 
-    let polarize attrs tree =
+    let convert attrs tree =
         let rec aux = AttributeM.(fun (Tree.{cat; str; children} as t) ->
             if Tree.is_terminal t then
                 pop () >>= fun attr ->
                     let pos = Attribute.pos attr in
-                    let types = SemanticType.of_terminal (cat, (String.lowercase_ascii str), pos) in
+                    let types = SemanticType.of_terminal
+                             (cat, (String.lowercase_ascii str), pos) in
                     return {
                         cat;
                         types;
@@ -227,7 +206,7 @@ struct
             else
                 mapM aux children >>= fun children ->
                     let child_types = List.map (fun c -> c.types) children in
-                    let types = SemanticType.of_nonterminal t child_types in
+                    let types = SemanticType.of_non_terminal t child_types in
                     return {
                         cat;
                         types;
@@ -238,10 +217,84 @@ struct
         AttributeM.eval (aux tree) attrs
 end
 
+module PolarizedTree =
+struct
+    type direction = Up | Down | Unknown
+    type t = {
+        dir: direction;
+        types: SemanticType.t;
+        ordered: OrderTypedTree.t;
+        orig: Tree.t;
+        children: t list;
+    }
+
+    let direction_show = function
+        | Up -> "↑" 
+        | Down -> "↓"
+        | Unknown -> "?"
+
+    let rec show t = 
+        let rec aux depth {dir; types; ordered; orig; children} =
+            let {OrderTypedTree.cat} = ordered in
+            let str = Tree.(if is_terminal orig then orig.str else "") in
+            let indent = String.make (depth * 2) ' ' in
+            let children = String.concat "" (List.map (aux (depth + 1)) children) in
+            !%"%s%s, %s, %s, %s\n%s" indent (Cat.show cat) (SemanticType.show types) (direction_show dir) str children in
+        aux 0 t
+
+    open SemanticType
+
+    let calc_dir pol dir =
+        match dir, pol with
+            | Up, Minus   -> Down
+            | Down, Minus -> Up
+            | Up, Plus    -> Up
+            | Down, Plus  -> Down
+            | _           -> Unknown
+
+    let rec apply dir (OrderTypedTree.{types; orig; children} as ordered) =
+        let children = match children with
+            | [] -> []
+            | [c1] -> begin match Tree.match_with_type_raised orig with
+                | None -> [apply dir c1]
+                | Some _ -> begin match types with
+                    | Fun (Fun (_, _, pol), _, _) ->
+                            [apply (calc_dir pol dir) c1]
+                end
+            end
+            | [left; right] -> begin match Tree.view2 orig with
+                | N (`FwdApp, _, [ N _; N (_, `NP _, _) ]) ->
+                    [apply dir right; apply (calc_dir (?~>(right.types)) dir) left]
+                | N (`FwdApp, _, _)  ->
+                    [apply dir left; apply (calc_dir (?~>(left.types)) dir) right]
+                | N (`BwdApp, _, [ N (_, `NP _, _); N _ ]) ->
+                    [apply dir left; apply (calc_dir (?~>(left.types)) dir) right]
+                | N (`BwdApp, _, _) ->
+                    [apply dir right; apply (calc_dir (?~>(right.types)) dir) left]
+                | N (`FwdCmp, _, _) ->
+                    [apply dir right; apply (calc_dir (?~>(right.types)) dir) left]
+                | N (`BwdCmp, _, _) ->
+                    [apply dir left; apply (calc_dir (?~>(left.types)) dir) right]
+                | N (`RP, _, _)   -> List.map (apply dir) children
+                | N (`GenFwdCmp, _, _)
+                | N (`GenBwdCmp, _, _)
+                | N (`Conj, _, _)
+                | _ -> invalid_arg "not supported combinatory rule"
+        end in
+        {
+            dir;
+            types;
+            ordered;
+            orig;
+            children;
+        }
+
+    let convert tree = apply Up tree
+end
+
 let () =
     let example = SemanticType.(e +~> t) in
-    print_endline (SemanticType.show example);
-    print_endline Direction.(show Up)
+    print_endline (SemanticType.show example)
 
 
 open Printer
@@ -290,7 +343,7 @@ let example =
     ])) in
     print_endline (EnglishPrinter.show_derivation tree);
     print_endline (EnglishPrinter.show_derivation (Fix.relative_clause tree));
-    print_endline (PolarizedTree.(show (polarize attributes tree)))
+    print_endline (OrderTypedTree.(show (convert attributes tree)))
 
 
 let example =
@@ -324,4 +377,7 @@ let example =
     ) in
     print_endline (EnglishPrinter.show_derivation tree);
     print_endline (EnglishPrinter.show_derivation (Fix.relative_clause tree));
-    print_endline (PolarizedTree.(show (polarize attributes tree)))
+    let res = tree |> Fix.apply
+         |> OrderTypedTree.convert attributes
+         |> PolarizedTree.convert in
+    print_endline (PolarizedTree.show res)

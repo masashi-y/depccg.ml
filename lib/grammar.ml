@@ -40,6 +40,9 @@ sig
     val of_view : view -> t
     val left_child : t -> t
     val right_child : t -> t
+    val match_with_unary : t -> t option
+    val match_with_binary : t -> (t * t) option
+    val match_with_type_raised : t -> (cat * t) option
 
 end
 
@@ -135,6 +138,20 @@ struct
     let right_child = function
         | {children=[_; c2]} -> c2
         | _ -> invalid_arg "right_child"
+
+    let match_with_type_raised = function
+        | {cat; children=[{cat=cat'} as child]}
+            when Cat.is_type_raised cat &&
+            Cat.(cat' =:= np || cat' =:= pp) -> Some (cat, child)
+        | _ -> None
+
+    let match_with_unary = function
+        | {children=[c1]} -> Some c1
+        | _ -> None
+
+    let match_with_binary = function
+        | {children=[c1; c2]} -> Some (c1, c2)
+        | _ -> None
 end
 
 
@@ -415,7 +432,6 @@ struct
     let is_seen seen_rules (c1, c2) =
         let prep = Cat.remove_some_feat [`Var; `Nb] in
         Hashtbl.mem seen_rules (prep c1, prep c2)
-
 end
 
 type ja_rules = [ `FwdCmp

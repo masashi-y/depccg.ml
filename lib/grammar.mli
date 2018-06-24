@@ -43,6 +43,9 @@ sig
     val of_view : view -> t
     val left_child : t -> t
     val right_child : t -> t
+    val match_with_unary : t -> t option
+    val match_with_binary : t -> (t * t) option
+    val match_with_type_raised : t -> (cat * t) option
 end
 
 

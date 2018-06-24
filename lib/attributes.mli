@@ -3,6 +3,11 @@ module Attribute :
 sig
     type t
 
+    type label = [ `Lemma of string
+                 | `Pos of string
+                 | `Chunk of string
+                 | `Entity of string ]
+
     val lemma  : ?def:string -> t -> string
     val pos    : ?def:string -> t -> string
     val chunk  : ?def:string -> t -> string
@@ -13,6 +18,9 @@ sig
                -> ?chunk:string
                -> ?entity:string
                -> unit -> t
+
+    val update : t -> label -> t
+
 end
 
 type t
@@ -21,9 +29,15 @@ type attrs = t
 
 val of_list : Attribute.t list -> t
 
+val to_list : t -> Attribute.t list
+
+val rev : t -> t
+
 val of_protobuf : Ccg_seed_types.ccgseed -> t
 
 val default : unit -> t
+
+val is_empty : t -> bool
 
 module AttributeM : 
 sig
@@ -45,8 +59,10 @@ sig
     val eval : ('a, 'b) t -> 'b -> 'a
     val exec : ('a, 'b) t -> 'b -> 'b
 
+    val push : Attribute.t -> (unit, attrs) t
     val pop : unit -> (Attribute.t, attrs) t
     val popi : unit -> (int * Attribute.t, int * attrs) t
 
     val mapM : ('a -> ('b, 'c) t) -> 'a list -> ('b list, 'c) t
+    val rev_mapM : ('a -> ('b, 'c) t) -> 'a list -> ('b list, 'c) t
 end

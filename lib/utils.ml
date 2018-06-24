@@ -201,6 +201,7 @@ module StateM : sig
     val exec : ('a, 'b) t -> 'b -> 'b
     val pop : unit -> ('a, 'a list) t
     val mapM : ('a -> ('b, 'c) t) -> 'a list -> ('b list, 'c) t
+    val rev_mapM : ('a -> ('b, 'c) t) -> 'a list -> ('b list, 'c) t
 end = struct
     type ('a, 'b) t = State of ('b -> 'a * 'b)
 
@@ -247,4 +248,12 @@ end = struct
             f x >>= fun x ->
             mapM f xs >>= fun xs ->
             return (x :: xs)
+
+    let rev_mapM f =
+        let rec aux lst = function
+            | [] -> return lst
+            | x :: xs ->
+                f x >>= fun x ->
+                aux (x :: lst) xs in
+        aux []
 end
