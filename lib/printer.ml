@@ -23,7 +23,7 @@ sig
 
     val show_ptb : int -> Tree.t -> string
 
-    val show_derivation : Tree.t -> string
+    val show_derivation : Attributes.t -> Tree.t -> string
 
     val show_html_trees : Tree.scored list -> Xml.xml
 
@@ -71,37 +71,52 @@ struct
                let w = String.concat " " (List.map (show_ptb (depth+1)) children) in
                !%"(%s %s)" (Cat.show cat) w
 
-    let show_derivation tree =
+    let cat_with_polarity cat =
+        AttributeM.(popn () >>= fun attr ->
+        Cat.show cat |> fun cat ->
+        return (match NodeAttribute.polarity_opt attr with
+            | Some p -> cat ^ " " ^ p
+            | None -> cat))
+
+    let show_derivation attrs tree =
         let open String in
         let space n = make n ' ' in
-        let rec terminal_string = function
-            | [] -> ("", "")
-            | (c, w) :: rest
-                -> let nextlen = 2 + max (length c) (length w) in
-                   let lcatlen = (nextlen - length c) / 2 in
-                   let rcatlen = lcatlen + (nextlen - length c) mod 2 in
-                   let lwordlen = (nextlen - length w) / 2 in
-                   let rwordlen = lwordlen + (nextlen - length w) mod 2 in
-                   let (cs, ws) = terminal_string rest in
-                   (space lcatlen ^ c ^ space rcatlen ^ cs,
-                       space lwordlen ^ w ^ space rwordlen ^ ws)
-        in let buf = Buffer.create 100 in
-        let rec show lwidth = function
-            | {cat; str; children=[]}
-                -> max lwidth (2 + lwidth + max (length (Cat.show cat)) (length str))
-            | {cat; op; children}
-                -> let rwidth = ListLabels.fold_left children ~init:lwidth
-                        ~f:(fun lw child -> let rw = show lw child in max lw rw) in
-                   let pad = max 0 ((rwidth - lwidth - (length (Cat.show cat))) / 2 + lwidth) in
-                   Printf.bprintf buf "%s%s%s\n%s%s\n" (space lwidth) (make (rwidth - lwidth) '-')
-                           (Rules.show op) (space pad) (Cat.show cat);
-                   rwidth in
-        let ws = terminals tree in
-        let cs = List.map Cat.show (preterminals tree) in
-        let (cs', ws') = terminal_string (List.combine cs ws) in
-        Printf.bprintf buf "%s\n" ws';
-        Printf.bprintf buf "%s\n" cs';
-        let _ = show 0 tree in
+        let rec terminal_string = AttributeM.(function
+            | {cat; str; children=[]} ->
+                cat_with_polarity cat >>= fun cat ->
+                let nextlen = 2 + max (length cat) (length str) in
+                let lcatlen = (nextlen - length cat) / 2 in
+                let rcatlen = lcatlen + (nextlen - length cat) mod 2 in
+                let lwordlen = (nextlen - length str) / 2 in
+                let rwordlen = lwordlen + (nextlen - length str) mod 2 in
+                return (space lcatlen ^ cat ^ space rcatlen,
+                        space lwordlen ^ str ^ space rwordlen)
+            | {children} ->
+                popn () >>= fun _ -> (* discard here *)
+                mapM terminal_string children >>= fun children ->
+                    let cs, ws = List.split children in
+                    return (String.concat "" cs,
+                            String.concat "" ws)) in
+        let buf = Buffer.create 100 in
+        let rec show lwidth = AttributeM.(function
+            | {cat; str; children=[]} ->
+                cat_with_polarity cat >>= fun cat ->
+                return @@ max lwidth (2 + lwidth + max (length cat) (length str))
+            | {cat; op; children} ->
+                cat_with_polarity cat >>= fun cat ->
+                fold_leftM (fun lw child ->
+                    show lw child >>= fun rw ->
+                    return @@ max lw rw)
+                lwidth children >>= fun rwidth ->
+                let pad = max 0 ((rwidth - lwidth - (length cat)) / 2 + lwidth) in
+                Printf.bprintf buf "%s%s%s\n%s%s\n" (space lwidth) (make (rwidth - lwidth) '-')
+                       (Rules.show op) (space pad) cat;
+               return rwidth
+        ) in
+        let (cs, ws) = AttributeM.eval (terminal_string tree) attrs in
+        Printf.bprintf buf "%s\n" ws;
+        Printf.bprintf buf "%s\n" cs;
+        ignore @@ AttributeM.eval (show 0 tree) attrs;
         Buffer.contents buf
 
     let show_html =
@@ -239,7 +254,7 @@ struct
         match fmt with
         | "auto"  -> List.iteri (g show_tree) res
         | "conll" -> List.iteri (g show_conll_like) res
-        | "deriv" -> List.iteri (f show_derivation) res
+        | "deriv" -> List.iteri (f (show_derivation (Attributes.default ()))) res
         | "ptb"   -> List.iteri (f (show_ptb 0)) res
         | "html"  -> pr (Xml.to_string_fmt (show_html_trees res))
         | "htmls" -> show_html_trees_separated names res
@@ -383,23 +398,34 @@ module EnglishPrinter = struct
             end
             | _ -> invalid_arg (!%"unexpected rule in show_xml_rule_type: %s\n" (Rules.show op))
 
+        let pop_polarity = AttributeM.(
+            popni ~incr:false () >>= fun (_, attr) ->
+            return (match NodeAttribute.polarity_opt attr with
+                | Some v -> [("mono", v)]
+                | None -> [])
+        )
+
         let show attr tree = 
             let open Attributes in
             let rec f = AttributeM.(function
                 | {cat; str; children=[]} -> 
-                    popi () >>= fun (start, att) ->
-                    return @@ Xml.Element ("lf", [
+                    popi () >>= fun (start, attr) ->
+                    pop_polarity >>= fun mono ->
+                    let fields = [
                         ("start", string_of_int start);
                         ("word",  str);
-                        ("lemma", Attribute.lemma ~def:"X" att);
-                        ("pos",   Attribute.pos ~def:"X" att);
-                        ("entity", Attribute.entity ~def:"X" att);
-                        ("cat", Cat.show cat)], [])
+                        ("lemma", Attribute.lemma ~def:"X" attr);
+                        ("pos",   Attribute.pos ~def:"X" attr);
+                        ("entity", Attribute.entity ~def:"X" attr);
+                        ("cat", Cat.show cat) ] in
+                    return @@ Xml.Element ("lf", fields @ mono, [])
                 | {cat; op; children} as tree -> 
                     mapM f children >>= fun children ->
-                    return @@ Xml.Element ("rule", 
-                        [("type", show_xml_rule_type tree op);
-                         ("cat", Cat.show cat)], children)
+                    pop_polarity >>= fun mono ->
+                    let fields = [
+                        ("type", show_xml_rule_type tree op);
+                        ("cat", Cat.show cat) ] in
+                    return @@ Xml.Element ("rule", fields @ mono, children)
             ) in
             AttributeM.eval (f tree) (0, attr)
     end
@@ -435,7 +461,7 @@ module EnglishPrinter = struct
         match fmt with
         | "auto"  -> CCList.iteri2 (g show_tree) attribs res
         | "conll" -> CCList.iteri2 (g show_conll_like) attribs res
-        | "deriv" -> List.iteri (f show_derivation) res
+        | "deriv" -> CCList.iteri2 (g show_derivation) attribs res
         | "ptb"   -> List.iteri (f (show_ptb 0)) res
         | "html"  -> pr (Xml.to_string_fmt (show_html_trees res))
         | "htmls" -> show_html_trees_separated names res

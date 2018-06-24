@@ -40,17 +40,19 @@ struct
 
     open Grammar
     module Cell = struct
-        type  t = {id        : int;
-                   in_score  : float;
-                   out_score : float;
-                   score     : float;
-                   start     : int;
-                   length    : int;
-                   final     : bool;
-                   tree      : Tree.t}
+        type t = {
+           id: int;
+           in_score: float;
+           out_score: float;
+           score: float;
+           start: int;
+           length: int;
+           final: bool;
+           tree: Tree.t
+        }
 
         (* Give higher priority to ones with higher scores *)
-        let compare {id=i1;score=s1} {id=i2;score=s2} =
+        let compare { id = i1 ;score = s1 } { id = i2 ;score = s2 } =
             let c = compare s2 s1 in
             if c = 0 then compare i1 i2 else c
     end
@@ -66,7 +68,7 @@ struct
 
         let pop Cell.{score; in_score; out_score; id; tree} =
             if do_log then (Printf.eprintf (blue ^^ "\nID: %i\n%s\ns: %e\nh: %e\ns+h: %e\n")
-                "POPPED" id (Printer.show_derivation tree) in_score out_score score; bar ())
+                "POPPED" id (Printer.show_derivation (Attributes.default ()) tree) in_score out_score score; bar ())
 
         let onebest = function
             | None -> ()
@@ -74,7 +76,7 @@ struct
                 Printf.eprintf "%s\t-->\t%s\n" str (Cat.show cat)
 
         let log msg Cell.{tree} = if do_log then
-            (Printf.eprintf (red ^^ "\n%s\n") msg (Printer.show_derivation tree); bar())
+            (Printf.eprintf (red ^^ "\n%s\n") msg (Printer.show_derivation (Attributes.default ()) tree); bar())
 
         let (unary, cand, binary) = (log "UNARY", log "CAND", log "BINARY")
     end
@@ -105,8 +107,9 @@ struct
             | None -> true
         in
         let cat_dict w i = match cat_dict with
-            | Some d -> (try (H.find d w).(i)
-                        with Not_found -> true)
+            | Some d ->
+                (try (H.find d w).(i)
+                with Not_found -> true)
             | None -> true
         in
         let best_dep_scores = Array.make n_words neg_infinity
@@ -151,7 +154,7 @@ struct
         let apply_unaries p q = match p with
             | Cell.{length} when length = n_words -> q
             | Cell.{in_score=s; out_score; start; length; tree={Tree.cat=c; op} as t} ->
-                 LL.fold_right (H.find_all unary_rules c)
+                LL.fold_right (H.find_all unary_rules c)
                     ~init:q ~f:(fun cat q ->
                         if is_acceptable_unary cat op then
                         (let tree = Tree.make ~cat ~op:Rules.unary ~children:[t] in

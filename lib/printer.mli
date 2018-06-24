@@ -12,7 +12,7 @@ sig
 
     val show_ptb : int -> Tree.t -> string
 
-    val show_derivation : Tree.t -> string
+    val show_derivation : Attributes.t -> Tree.t -> string
 
     val show_html_trees : Tree.scored list -> Xml.xml
 
@@ -39,7 +39,7 @@ module EnglishPrinter : sig
 
     val show_ptb : int -> Tree.t -> string
 
-    val show_derivation : Tree.t -> string
+    val show_derivation : Attributes.t -> Tree.t -> string
 
     val show_html_trees : Tree.scored list -> Xml.xml
 

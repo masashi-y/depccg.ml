@@ -202,6 +202,7 @@ module StateM : sig
     val pop : unit -> ('a, 'a list) t
     val mapM : ('a -> ('b, 'c) t) -> 'a list -> ('b list, 'c) t
     val rev_mapM : ('a -> ('b, 'c) t) -> 'a list -> ('b list, 'c) t
+    val fold_leftM : ('a -> 'b -> ('a, 'c) t) -> 'a -> 'b list -> ('a, 'c) t
 end = struct
     type ('a, 'b) t = State of ('b -> 'a * 'b)
 
@@ -256,4 +257,10 @@ end = struct
                 f x >>= fun x ->
                 aux (x :: lst) xs in
         aux []
+
+    let rec fold_leftM f init = function
+        | [] -> return init
+        | x :: xs ->
+            f init x >>= fun x' ->
+            fold_leftM f x' xs
 end

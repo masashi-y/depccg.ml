@@ -62,7 +62,7 @@ struct
     ------------------------------------ fa
                    NP
 *)
-    let relatives = ["that"; "which"; "who"]
+    let relatives = ["that"; "which"; "who"; "whom"]
 
     let rec relative_clause ({children} as t) = 
         let open Cat in
@@ -167,7 +167,7 @@ struct
         | N (`BwdApp, _, _), [_; Fun (_, types, _)] -> types
         | N (`FwdCmp, _, _), [Fun (ty1, _, p1); Fun (_, ty2, p2)]
         | N (`BwdCmp, _, _), [Fun (_, ty1, p1); Fun (ty2, _, p2)] -> f (ty1, ty2) (p1, p2)
-        | N (`RP, x, [T (y, _); _]), [ty1; _]
+        | N (`RP, x, [T (y, _); _]), [ty1; _] when Cat.(x =:= y) -> ty1
         | N (`RP, x, [_; T (y, _)]), [_; ty1] when Cat.(x =:= y) -> ty1
         | _ -> failwith ""
 end
@@ -229,8 +229,8 @@ struct
     }
 
     let direction_show = function
-        | Up -> "↑" 
-        | Down -> "↓"
+        | Up -> "+"   (* "↑" *)
+        | Down -> "-" (* "↓" *)
         | Unknown -> "?"
 
     let rec show t = 
@@ -257,10 +257,10 @@ struct
             | [] -> []
             | [c1] -> begin match Tree.match_with_type_raised orig with
                 | None -> [apply dir c1]
-                | Some _ -> begin match types with
+                | Some _ -> match types with
                     | Fun (Fun (_, _, pol), _, _) ->
                             [apply (calc_dir pol dir) c1]
-                end
+                    | _  -> [apply (calc_dir (?~>types) dir) c1]
             end
             | [left; right] -> begin match Tree.view2 orig with
                 | N (`FwdApp, _, [ N _; N (_, `NP _, _) ]) ->
@@ -280,7 +280,8 @@ struct
                 | N (`GenBwdCmp, _, _)
                 | N (`Conj, _, _)
                 | _ -> invalid_arg "not supported combinatory rule"
-        end in
+            end
+            | _ -> failwith "" in
         {
             dir;
             types;
@@ -290,19 +291,35 @@ struct
         }
 
     let convert tree = apply Up tree
+
+    let to_attributes tree =
+        let rec aux { dir; children } = AttributeM.(
+            let polarity = direction_show dir in
+            let attr = NodeAttribute.default ~polarity () in
+            pushn attr >>= fun () ->
+            mapM aux children >>= fun _ ->
+            return ()
+        ) in
+        Attributes.rev
+            (AttributeM.exec (aux tree) (Attributes.default ()))
 end
 
-let () =
-    let example = SemanticType.(e +~> t) in
-    print_endline (SemanticType.show example)
+let apply attrs tree =
+    let leaves, _ = Attributes.to_lists attrs in
+    let fixed = Fix.apply tree in
+    let ordered = OrderTypedTree.convert attrs fixed in
+    let _, nodes = PolarizedTree.(ordered |> convert |> to_attributes)
+            |> Attributes.to_lists in
+    let attrs = Attributes.of_lists ~leaves ~nodes () in
+    (fixed, attrs)
 
-
+(*
 open Printer
 
 let example =
     let open Grammar.EnglishGrammar.Notat in
-    let attributes = Attributes.(of_list
-        [
+    let attributes = Attributes.(of_lists
+        ~leaves:[
             Attribute.default ~pos:"DT" ();
             Attribute.default ~pos:"JJ" ();
             Attribute.default ~pos:"N" ();
@@ -312,7 +329,7 @@ let example =
             Attribute.default ~pos:"N" ();
             Attribute.default ~pos:"VB" ();
             Attribute.default ~pos:"VB" ();
-        ]) in
+        ] ()) in
     let tree = Tree.of_view (
     N (ba, s, [
         N (ba, np, [
@@ -341,22 +358,21 @@ let example =
         ]);
         T (s_(dcl) |: np, "cried")
     ])) in
-    print_endline (EnglishPrinter.show_derivation tree);
-    print_endline (EnglishPrinter.show_derivation (Fix.relative_clause tree));
-    print_endline (OrderTypedTree.(show (convert attributes tree)))
+    let tree, attrs = apply attributes tree in
+    print_endline (EnglishPrinter.show_derivation attrs tree)
 
 
 let example =
     let open Grammar.EnglishGrammar.Notat in
-    let attributes = Attributes.(of_list
-        [
+    let attributes = Attributes.(of_lists
+        ~leaves:[
             Attribute.default ~pos:"DT" ();
             Attribute.default ~pos:"N" ();
             Attribute.default ~pos:"VB" ();
             Attribute.default ~pos:"DT" ();
             Attribute.default ~pos:"N" ();
             Attribute.default ~pos:"N" ();
-        ]) in
+        ] ()) in
     let tree = Tree.of_view (
         N (rp, s, [
             N (ba, s, [
@@ -375,9 +391,6 @@ let example =
             T (!:".", ".");
         ])
     ) in
-    print_endline (EnglishPrinter.show_derivation tree);
-    print_endline (EnglishPrinter.show_derivation (Fix.relative_clause tree));
-    let res = tree |> Fix.apply
-         |> OrderTypedTree.convert attributes
-         |> PolarizedTree.convert in
-    print_endline (PolarizedTree.show res)
+    let tree, attrs = apply attributes tree in
+    print_endline (EnglishPrinter.show_derivation attrs tree)
+*)

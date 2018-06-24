@@ -13,6 +13,11 @@ sig
     val chunk  : ?def:string -> t -> string
     val entity : ?def:string -> t -> string
 
+    val lemma_opt  : t -> string option
+    val pos_opt    : t -> string option
+    val chunk_opt  : t -> string option
+    val entity_opt : t -> string option
+
     val default : ?lemma:string
                -> ?pos:string
                -> ?chunk:string
@@ -23,13 +28,30 @@ sig
 
 end
 
+module NodeAttribute :
+sig
+    type t
+
+    type label = [ `Polarity of string ]
+
+    val polarity : ?def:string -> t -> string
+
+    val polarity_opt : t -> string option
+
+    val default : ?polarity:string -> unit -> t
+
+    val update : t -> label -> t
+end
+
 type t
 
 type attrs = t
 
-val of_list : Attribute.t list -> t
+val of_lists : ?leaves:(Attribute.t list)
+            -> ?nodes:(NodeAttribute.t list)
+            -> unit -> t
 
-val to_list : t -> Attribute.t list
+val to_lists : t -> Attribute.t list * NodeAttribute.t list
 
 val rev : t -> t
 
@@ -38,6 +60,10 @@ val of_protobuf : Ccg_seed_types.ccgseed -> t
 val default : unit -> t
 
 val is_empty : t -> bool
+
+val update : ?leaves:(Attribute.t list)
+            -> ?nodes:(NodeAttribute.t list)
+            -> t -> t
 
 module AttributeM : 
 sig
@@ -60,9 +86,13 @@ sig
     val exec : ('a, 'b) t -> 'b -> 'b
 
     val push : Attribute.t -> (unit, attrs) t
+    val pushn : NodeAttribute.t -> (unit, attrs) t
     val pop : unit -> (Attribute.t, attrs) t
-    val popi : unit -> (int * Attribute.t, int * attrs) t
+    val popn : unit -> (NodeAttribute.t, attrs) t
+    val popi : ?incr:bool -> unit -> (int * Attribute.t, int * attrs) t
+    val popni : ?incr:bool -> unit -> (int * NodeAttribute.t, int * attrs) t
 
     val mapM : ('a -> ('b, 'c) t) -> 'a list -> ('b list, 'c) t
     val rev_mapM : ('a -> ('b, 'c) t) -> 'a list -> ('b list, 'c) t
+    val fold_leftM : ('a -> 'b -> ('a, 'c) t) -> 'a -> 'b list -> ('a, 'c) t
 end

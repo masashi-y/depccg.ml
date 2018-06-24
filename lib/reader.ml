@@ -141,7 +141,7 @@ module CCGBank = struct
         let error () = invalid_arg (!%"failed to parse %s\n" str) in
         let rec parse' stack poss = function
             | [] -> begin match stack with
-               | [`Close x] -> (Attributes.of_list @@ List.rev poss), x
+               | [`Close x] -> (Attributes.of_lists ~leaves:(List.rev poss) ()), x
                | _ -> error ()
             end
             | "(" :: "L" :: cat :: pos :: _ :: word :: _ :: ")" :: rest ->
