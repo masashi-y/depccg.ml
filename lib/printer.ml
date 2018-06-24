@@ -25,7 +25,7 @@ sig
 
     val show_derivation : Tree.t -> string
 
-    val show_html_trees : Tree.scored list -> string
+    val show_html_trees : Tree.scored list -> Xml.xml
 
     val show_html_trees_separated : string option list -> Tree.scored list -> unit
 
@@ -105,77 +105,81 @@ struct
         Buffer.contents buf
 
     let show_html =
-        let cstr = format_of_string "<mi mathvariant='italic'
-          mathsize='1.0' mathcolor='Red'>%s</mi>"
-        and fstr = format_of_string "<msub>%s<mrow>
-    <mi mathvariant='italic'
-        mathsize='0.8' mathcolor='Purple'>%s</mi>
-          </mrow></msub>"
+        let cstr cat =
+            Xml.Element ("mi", [
+                ("mathvariant", "italic");
+                ("mathsize", "1.0");
+                ("mathcolor", "Red")], [ PCData cat ])
+
+        and fstr cat_elem feat = 
+            Xml.(Element ("msub", [], [
+                cat_elem;
+                Element ("mrow", [], [
+                    Element ("mi", [
+                        ("mathvariant", "italic");
+                        ("mathsize", "0.8");
+                        ("mathcolor", "Purple")],
+                            [ PCData feat ]) ]) ]))
+
         in
         let add_feat c f =
-            let res = !% cstr c in
+            let res = cstr c in
              match Feature.show f with
             | "" -> res
-            | s -> !% fstr res s in
+            | s  -> fstr res s in
+
         let rec show_html_cat = function
-            | `S f  -> add_feat "S" f
-            | `N f  -> add_feat "N" f
-            | `NP f -> add_feat "NP" f
-            | `PP f -> add_feat "PP" f
-            | `Punct s -> !% cstr s
-            | `Fwd (x, y) -> (!% cstr "(") ^ (show_html_cat x) ^
-                             (!% cstr "/") ^ (show_html_cat y) ^ (!% cstr ")")
-            | `Bwd (x, y) -> (!% cstr "(") ^ (show_html_cat x) ^
-                             (!% cstr "\\") ^ (show_html_cat y) ^ (!% cstr ")")
-            | `Either (x, y) -> (!% cstr "(") ^ (show_html_cat x) ^
-                             (!% cstr "|") ^ (show_html_cat y) ^ (!% cstr ")")
+            | `S f  -> [add_feat "S" f]
+            | `N f  -> [add_feat "N" f]
+            | `NP f -> [add_feat "NP" f]
+            | `PP f -> [add_feat "PP" f]
+            | `Punct s -> [cstr s]
+            | `Fwd (x, y) ->
+                (cstr "(" :: show_html_cat x) @ (cstr "/" :: show_html_cat y) @ [cstr ")"]
+            | `Bwd (x, y) ->
+                (cstr "(" :: show_html_cat x) @ (cstr "\\" :: show_html_cat y) @ [cstr ")"]
+            | `Either (x, y) ->
+                (cstr "(" :: show_html_cat x) @ (cstr "|" :: show_html_cat y) @ [cstr ")"]
 
         in
         let rec show_html_tree = function
         | {cat; str; children=[]} ->
-            (!%"<mrow>
-  <mfrac linethickness='2px'>
-    <mtext mathsize='1.0' mathcolor='Black'>%s</mtext>
-    <mstyle mathcolor='Red'>%s</mstyle>
-  </mfrac>
-  <mtext mathsize='0.8' mathcolor='Black'>lex</mtext>
-</mrow>" str (show_html_cat cat))
-        | {cat; op; children} ->
-            (!%"<mrow>
-  <mfrac linethickness='2px'>
-    <mrow>%s</mrow>
-    <mstyle mathcolor='Red'>%s</mstyle>
-  </mfrac>
-  <mtext mathsize='0.8' mathcolor='Black'>%s</mtext>
-</mrow>" (String.concat "" @@ List.map show_html_tree children)
-         (show_html_cat cat)
-         (escape_html_simple @@ Rules.show op))
+            Xml.(Element ("mrow", [], [
+                Element ("mfrac", [("linethickness", "2px")], [
+                    Element ("mtext",  [("mathsize", "1.0"); ("mathcolor", "Black")], [PCData str]);
+                    Element ("mstyle", [("mathcolor", "Red")], show_html_cat cat)
+                ]);
+                Element ("mtext", [("mathsize", "0.8"); ("mathcolor", "Black")], [PCData "lex"]) ]))
+        | {cat; op; children=cs} ->
+            Xml.(Element ("mrow", [], [
+                Element ("mfrac", [("linethickness", "2px")], [
+                    Element ("mrow", [], List.map show_html_tree cs);
+                    Element ("mstyle", [("mathcolor", "Red")], show_html_cat cat)
+                ]);
+                Element ("mtext", [("mathsize", "0.8"); ("mathcolor", "Black")], [PCData (Rules.show op)])
+            ]))
         in show_html_tree
 
     let show_html_trees tss =
         let f i ts =
             let _, t = List.hd ts in
-            let show = String.concat "" @@ List.map (fun (p, t) ->
-                !%"<p>Log prob=%f</p>
-    <math xmlns='http://www.w3.org/1998/Math/MathML'>%s</math>"
-     p (show_html t))
-                ts in
-            (!% "<p>ID=%d: %s</p>%s"
-                i (String.concat " " @@ terminals t) show)
-        in (!%"<!doctype html>
-<html lang='en'>
-<head>
-  <meta charset='UTF-8'>
-  <style>
-    body {
-      font-size: 1em;
-    }
-  </style>
-  <script type=\"text/javascript\"
-     src=\"http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML\">
-  </script>
-</head>
-<body>%s</body></html>" (String.concat "" @@ List.mapi f tss))
+            let raw_sent = String.concat " " (Tree.terminals t) in
+            Xml.(Element ("p", [], [PCData (!%"ID=%d: %s" i raw_sent)]) ::
+            CCList.flat_map (fun (p, t) -> [
+                    Element ("p", [], [PCData (!%"Log prob=%f" p)]);
+                    Element ("math", [("xmlns", "http://www.w3.org/1998/Math/MathML")], [show_html t])
+                ]) ts) in
+        Xml.(Element ("html", [("lang", "en")], [
+            Element ("head", [], [
+                Element ("meta", [("charset", "UTF-8")], []);
+                Element ("style", [], [ PCData "body { font-size: 1em; }" ]);
+                Element ("script", [
+                    ("type", "text/javascript");
+                    ("src", "http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML")], [ PCData "" ])
+            ]);
+            Element ("body", [], List.(flatten @@ mapi f tss))
+        ]))
+
 
     let show_html_trees_separated names tss =
         let dir = !% "results_%s" (current_time_string ()) in
@@ -190,38 +194,39 @@ struct
             let fname = match name with
                 | None -> !%"%d.html" i
                 | Some n -> new_fname 1 n (!%"%s.html" n) in
-            write_file (dir </> fname) res;
+            write_file (dir </> fname) (Xml.to_string_fmt res);
             fname, sent in
         let () = Unix.mkdir dir 0o744 in
         let filenames = List.mapi f (List.combine names tss) in
         write_file (dir </> "index.html")
-(!%"<!doctype html>
-<html lang='en'>
-<head>
-  <meta charset='UTF-8'>
-  <title>results</title>
-  <style>
-    body {
-      font-size: 1.5em;
-    }
-  </style>
-</head>
-<body>
-<table border='1'>
-<tr>
-  <td>id</td>
-  <td>tree</td>
-</tr>%s
-</table>
-</body>
-</html>" (String.concat "" @@ List.mapi (fun i (fname, sent) ->
-    !% "
-<tr>
-  <td>%d</td>
-  <td><a href=\"%s\">%s</a></td>
-  <td>%s</td>
-</tr>" i fname fname sent) filenames));
-  Printf.eprintf "write results to directory: %s\n" dir
+            Xml.(to_string_fmt (Element ("html", [("lang", "en")], [
+                Element ("head", [], [
+                    Element ("meta", [("charset", "UTF-8")], []);
+                    Element ("style", [], [ PCData "body { font-size: 1em; }" ]);
+                    Element ("script", [
+                        ("type", "text/javascript");
+                        ("src", "http://cdn.mathjax.org/mathjax/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML")], [ PCData "" ])
+                    ]);
+                Element ("body", [], [
+                    Element ("table", [("border", "1")],
+                        Element ("tr", [], [
+                            Element ("td", [], [ PCData "id" ]);
+                            Element ("td", [], [ PCData "file" ]);
+                            Element ("td", [], [ PCData "sentence" ]);
+                        ]) ::
+                        List.mapi (fun i (fname, sent) ->
+                            Element ("tr", [], [
+                                Element ("td", [], [ PCData (string_of_int i) ]);
+                                Element ("td", [], [
+                                    Element ("a", [("href", fname)], [ PCData fname ])
+                                ]);
+                                Element ("td", [], [ PCData sent ]);
+                            ])
+                        ) filenames
+                    )
+                ])
+            ])));
+        Printf.eprintf "write results to directory: %s\n" dir
 
     let output_results fmt names res =
         let f printfun i =
@@ -236,7 +241,7 @@ struct
         | "conll" -> List.iteri (g show_conll_like) res
         | "deriv" -> List.iteri (f show_derivation) res
         | "ptb"   -> List.iteri (f (show_ptb 0)) res
-        | "html"  -> pr (show_html_trees res)
+        | "html"  -> pr (Xml.to_string_fmt (show_html_trees res))
         | "htmls" -> show_html_trees_separated names res
         | _ -> invalid_arg (!%"Not accepted output format: %s\n" fmt)
 
@@ -432,7 +437,7 @@ module EnglishPrinter = struct
         | "conll" -> CCList.iteri2 (g show_conll_like) attribs res
         | "deriv" -> List.iteri (f show_derivation) res
         | "ptb"   -> List.iteri (f (show_ptb 0)) res
-        | "html"  -> pr (show_html_trees res)
+        | "html"  -> pr (Xml.to_string_fmt (show_html_trees res))
         | "htmls" -> show_html_trees_separated names res
         | "xml"  -> pr (show_xml_trees attribs res)
         | "prolog" -> show_prolog attribs res
