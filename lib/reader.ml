@@ -238,9 +238,9 @@ struct
     let parse_file file =
         match Xml.parse_file file with
         | Xml.Element ("candc", _, nodes) ->
-            let f node (ts, attrs) =
+            let f node (attrs, ts) =
                 let t, attr = parse_tree node in
-                (t :: ts, attr :: attrs) in
+                (attr :: attrs, t :: ts) in
             List.fold_right f nodes ([], [])
         | _ -> failwith "unknown xml node in candc"
 

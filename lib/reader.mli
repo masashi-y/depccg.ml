@@ -47,5 +47,5 @@ end
 module CAndCXML :
 sig
     open EnglishGrammar
-    val parse_file : file -> Tree.t list * Attributes.t list
+    val parse_file : file -> Attributes.t list * Tree.t list
 end
