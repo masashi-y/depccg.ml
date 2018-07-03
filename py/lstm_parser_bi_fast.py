@@ -136,7 +136,6 @@ class FastBiaffineLSTMParser(chainer.Chain):
         Param.load(self, model_path / 'tagger_defs.txt')
         self.extractor = FeatureExtractor(model_path, length=True)
         self.in_dim = self.word_dim + 8 * self.afix_dim
-        self.dropout_ratio = dropout_ratio
         super(FastBiaffineLSTMParser, self).__init__(
                 emb_word=L.EmbedID(self.n_words, self.word_dim, ignore_label=IGNORE),
                 emb_suf=L.EmbedID(self.n_suffixes, self.afix_dim, ignore_label=IGNORE),
@@ -157,7 +156,7 @@ class FastBiaffineLSTMParser(chainer.Chain):
         wss = self.emb_word(ws)
         sss = F.reshape(self.emb_suf(ss), (batchsize, slen, 4 * self.afix_dim))
         pss = F.reshape(self.emb_prf(ps), (batchsize, slen, 4 * self.afix_dim))
-        ins = F.dropout(F.concat([wss, sss, pss], 2), self.dropout_ratio)
+        ins = F.dropout(F.concat([wss, sss, pss], 2), 0.5)
         xs_f = F.transpose(ins, (1, 0, 2))
         xs_b = xs_f[::-1]
 

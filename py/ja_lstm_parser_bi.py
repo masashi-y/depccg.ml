@@ -56,7 +56,6 @@ class BiaffineJaLSTMParser(chainer.Chain):
         Param.load(self, model_path / 'tagger_defs.txt')
         self.extractor = FeatureExtractor(model_path)
         self.in_dim = self.word_dim + self.char_dim
-        self.dropout_ratio = dropout_ratio
         super(BiaffineJaLSTMParser, self).__init__(
                 emb_word=L.EmbedID(self.n_words, self.word_dim),
                 emb_char=L.EmbedID(self.n_chars, 50, ignore_label=IGNORE),
@@ -83,8 +82,7 @@ class BiaffineJaLSTMParser(chainer.Chain):
                     F.expand_dims(
                         self.emb_char(c), 1)), (int(l[0]), 1)))
                     for c, l in zip(cs, ls)]
-        xs_f = [F.dropout(F.concat([w, c]),
-            self.dropout_ratio) for w, c in zip(ws, cs)]
+        xs_f = [F.dropout(F.concat([w, c]), 0.5) for w, c in zip(ws, cs)]
         xs_b = [x[::-1] for x in xs_f]
         cx_f, hx_f, cx_b, hx_b = self._init_state(xp, batchsize)
         _, _, hs_f = self.lstm_f(hx_f, cx_f, xs_f)
