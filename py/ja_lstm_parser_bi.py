@@ -25,8 +25,8 @@ IGNORE = -1
 class FeatureExtractor(object):
     def __init__(self, model_path):
         self.model_path = model_path
-        self.words = read_model_defs(model_path + "/words.txt")
-        self.chars = read_model_defs(model_path + "/chars.txt")
+        self.words = read_model_defs(model_path / 'words.txt')
+        self.chars = read_model_defs(model_path / 'chars.txt')
         self.unk_word = self.words[UNK]
         self.start_word = self.words[START]
         self.end_word = self.words[END]
@@ -52,27 +52,9 @@ class FeatureExtractor(object):
 
 
 class BiaffineJaLSTMParser(chainer.Chain):
-    def __init__(self, model_path, word_dim=None, char_dim=None, nlayers=2,
-            hidden_dim=128, dep_dim=100, dropout_ratio=0.5):
-        self.model_path = model_path
-        defs_file = model_path + "/tagger_defs.txt"
-        if word_dim is None:
-            self.train = False
-            Param.load(self, defs_file)
-            self.extractor = FeatureExtractor(model_path)
-        else:
-            self.train = True
-            p = Param(self)
-            p.dep_dim = dep_dim
-            p.word_dim = word_dim
-            p.char_dim = char_dim
-            p.hidden_dim = hidden_dim
-            p.nlayers = nlayers
-            p.n_words = len(read_model_defs(model_path + "/words.txt"))
-            p.n_chars = len(read_model_defs(model_path + "/chars.txt"))
-            p.targets = read_model_defs(model_path + "/target.txt")
-            p.dump(defs_file)
-
+    def __init__(self, model_path):
+        Param.load(self, model_path / 'tagger_defs.txt')
+        self.extractor = FeatureExtractor(model_path)
         self.in_dim = self.word_dim + self.char_dim
         self.dropout_ratio = dropout_ratio
         super(BiaffineJaLSTMParser, self).__init__(
@@ -89,41 +71,7 @@ class BiaffineJaLSTMParser(chainer.Chain):
                 rel_dep=L.Linear(2 * self.hidden_dim, self.dep_dim),
                 rel_head=L.Linear(2 * self.hidden_dim, self.dep_dim),
                 biaffine_arc=Biaffine(self.dep_dim),
-                biaffine_tag=L.Bilinear(self.dep_dim, self.dep_dim, len(self.targets))
-                )
-
-    def load_pretrained_embeddings(self, path):
-        self.emb_word.W.data = read_pretrained_embeddings(path)
-
-    def __call__(self, xs):
-        """
-        xs [(w,s,p,y), ..., ]
-        w: word, c: char, l: length, y: label
-        """
-        batchsize = len(xs)
-        ws, cs, ls, cat_ts, dep_ts = zip(*xs)
-        cat_ys, dep_ys = self.forward(ws, cs, ls, dep_ts if self.train else None)
-
-        cat_loss = reduce(lambda x, y: x + y,
-            [F.softmax_cross_entropy(y, t) for y, t in zip(cat_ys, cat_ts)])
-        cat_acc = reduce(lambda x, y: x + y,
-            [F.accuracy(y, t, ignore_label=IGNORE) for y, t in zip(cat_ys, cat_ts)])
-
-        dep_loss = reduce(lambda x, y: x + y,
-            [F.softmax_cross_entropy(y, t) for y, t in zip(dep_ys, dep_ts)])
-        dep_acc = reduce(lambda x, y: x + y,
-            [F.accuracy(y, t, ignore_label=IGNORE) for y, t in zip(dep_ys, dep_ts)])
-
-
-        cat_acc /= batchsize
-        dep_acc /= batchsize
-        chainer.report({
-            "tagging_loss": cat_loss,
-            "tagging_accuracy": cat_acc,
-            "parsing_loss": dep_loss,
-            "parsing_accuracy": dep_acc
-            }, self)
-        return cat_loss + dep_loss
+                biaffine_tag=L.Bilinear(self.dep_dim, self.dep_dim, len(self.targets)))
 
     def forward(self, ws, cs, ls, dep_ts=None):
         batchsize = len(ws)
@@ -144,7 +92,6 @@ class BiaffineJaLSTMParser(chainer.Chain):
         hs_b = [x[::-1] for x in hs_b]
         hs = [F.concat([h_f, h_b]) for h_f, h_b in zip(hs_f, hs_b)]
 
-
         dep_ys = [self.biaffine_arc(
             F.elu(F.dropout(self.arc_dep(h), 0.32)),
             F.elu(F.dropout(self.arc_head(h), 0.32))) for h in hs]
@@ -164,9 +111,6 @@ class BiaffineJaLSTMParser(chainer.Chain):
         return cat_ys, dep_ys
 
     def predict(self, xs):
-        """
-        batch: list of splitted sentences
-        """
         xs = [self.extractor.process(x) for x in xs]
         ws, ss, ps = zip(*xs)
         with chainer.no_backprop_mode(), chainer.using_config('train', False):
@@ -175,9 +119,6 @@ class BiaffineJaLSTMParser(chainer.Chain):
                 [F.log_softmax(y[1:-1, :-1]).data for y in dep_ys])
 
     def predict_doc(self, doc, batchsize=16):
-        """
-        doc list of splitted sentences
-        """
         res = []
         for i in range(0, len(doc), batchsize):
             res.extend([(i + j, 0, y)
