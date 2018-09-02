@@ -1,5 +1,11 @@
 syntax="proto2";
 
+message Constraint {
+    required string category = 1;
+    required int32 start = 2;
+    required int32 length = 3;
+}
+
 message Attribute {
     optional string lemma = 1;
     optional string pos = 2;
@@ -19,6 +25,7 @@ message CCGSeed {
     required Matrix cat_probs = 3;
     required Matrix dep_probs = 4;
     repeated Attribute attribs = 5;
+    repeated Constraint constraints = 6;
 }
 
 message Matrix {

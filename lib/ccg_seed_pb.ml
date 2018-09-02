@@ -1,5 +1,17 @@
 [@@@ocaml.warning "-27-30-39"]
 
+type constraint__mutable = {
+  mutable category : string;
+  mutable start : int;
+  mutable length : int;
+}
+
+let default_constraint__mutable () : constraint__mutable = {
+  category = "";
+  start = 0;
+  length = 0;
+}
+
 type attribute_mutable = {
   mutable lemma : string option;
   mutable pos : string option;
@@ -30,6 +42,7 @@ type ccgseed_mutable = {
   mutable cat_probs : Ccg_seed_types.matrix;
   mutable dep_probs : Ccg_seed_types.matrix;
   mutable attribs : Ccg_seed_types.attribute list;
+  mutable constraints : Ccg_seed_types.constraint_ list;
 }
 
 let default_ccgseed_mutable () : ccgseed_mutable = {
@@ -38,6 +51,7 @@ let default_ccgseed_mutable () : ccgseed_mutable = {
   cat_probs = Ccg_seed_types.default_matrix ();
   dep_probs = Ccg_seed_types.default_matrix ();
   attribs = [];
+  constraints = [];
 }
 
 type ccgseeds_mutable = {
@@ -52,6 +66,42 @@ let default_ccgseeds_mutable () : ccgseeds_mutable = {
   seeds = [];
 }
 
+
+let rec decode_constraint_ d =
+  let v = default_constraint__mutable () in
+  let continue__= ref true in
+  let length_is_set = ref false in
+  let start_is_set = ref false in
+  let category_is_set = ref false in
+  while !continue__ do
+    match Pbrt.Decoder.key d with
+    | None -> (
+    ); continue__ := false
+    | Some (1, Pbrt.Bytes) -> begin
+      v.category <- Pbrt.Decoder.string d; category_is_set := true;
+    end
+    | Some (1, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(constraint_), field(1)" pk
+    | Some (2, Pbrt.Varint) -> begin
+      v.start <- Pbrt.Decoder.int_as_varint d; start_is_set := true;
+    end
+    | Some (2, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(constraint_), field(2)" pk
+    | Some (3, Pbrt.Varint) -> begin
+      v.length <- Pbrt.Decoder.int_as_varint d; length_is_set := true;
+    end
+    | Some (3, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(constraint_), field(3)" pk
+    | Some (_, payload_kind) -> Pbrt.Decoder.skip d payload_kind
+  done;
+  begin if not !length_is_set then Pbrt.Decoder.missing_field "length" end;
+  begin if not !start_is_set then Pbrt.Decoder.missing_field "start" end;
+  begin if not !category_is_set then Pbrt.Decoder.missing_field "category" end;
+  ({
+    Ccg_seed_types.category = v.category;
+    Ccg_seed_types.start = v.start;
+    Ccg_seed_types.length = v.length;
+  } : Ccg_seed_types.constraint_)
 
 let rec decode_attribute d =
   let v = default_attribute_mutable () in
@@ -123,6 +173,7 @@ let rec decode_ccgseed d =
   while !continue__ do
     match Pbrt.Decoder.key d with
     | None -> (
+      v.constraints <- List.rev v.constraints;
       v.attribs <- List.rev v.attribs;
       v.sentence <- List.rev v.sentence;
     ); continue__ := false
@@ -151,6 +202,11 @@ let rec decode_ccgseed d =
     end
     | Some (5, pk) -> 
       Pbrt.Decoder.unexpected_payload "Message(ccgseed), field(5)" pk
+    | Some (6, Pbrt.Bytes) -> begin
+      v.constraints <- (decode_constraint_ (Pbrt.Decoder.nested d)) :: v.constraints;
+    end
+    | Some (6, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(ccgseed), field(6)" pk
     | Some (_, payload_kind) -> Pbrt.Decoder.skip d payload_kind
   done;
   begin if not !dep_probs_is_set then Pbrt.Decoder.missing_field "dep_probs" end;
@@ -161,6 +217,7 @@ let rec decode_ccgseed d =
     Ccg_seed_types.cat_probs = v.cat_probs;
     Ccg_seed_types.dep_probs = v.dep_probs;
     Ccg_seed_types.attribs = v.attribs;
+    Ccg_seed_types.constraints = v.constraints;
   } : Ccg_seed_types.ccgseed)
 
 let rec decode_ccgseeds d =
@@ -196,6 +253,15 @@ let rec decode_ccgseeds d =
     Ccg_seed_types.categories = v.categories;
     Ccg_seed_types.seeds = v.seeds;
   } : Ccg_seed_types.ccgseeds)
+
+let rec encode_constraint_ (v:Ccg_seed_types.constraint_) encoder = 
+  Pbrt.Encoder.key (1, Pbrt.Bytes) encoder; 
+  Pbrt.Encoder.string v.Ccg_seed_types.category encoder;
+  Pbrt.Encoder.key (2, Pbrt.Varint) encoder; 
+  Pbrt.Encoder.int_as_varint v.Ccg_seed_types.start encoder;
+  Pbrt.Encoder.key (3, Pbrt.Varint) encoder; 
+  Pbrt.Encoder.int_as_varint v.Ccg_seed_types.length encoder;
+  ()
 
 let rec encode_attribute (v:Ccg_seed_types.attribute) encoder = 
   begin match v.Ccg_seed_types.lemma with
@@ -254,6 +320,10 @@ let rec encode_ccgseed (v:Ccg_seed_types.ccgseed) encoder =
     Pbrt.Encoder.key (5, Pbrt.Bytes) encoder; 
     Pbrt.Encoder.nested (encode_attribute x) encoder;
   ) v.Ccg_seed_types.attribs;
+  List.iter (fun x -> 
+    Pbrt.Encoder.key (6, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.nested (encode_constraint_ x) encoder;
+  ) v.Ccg_seed_types.constraints;
   ()
 
 let rec encode_ccgseeds (v:Ccg_seed_types.ccgseeds) encoder = 

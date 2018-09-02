@@ -3,10 +3,12 @@ open Utils
 open Cat
 
 type file = string
+type matrix = float Matrix.t
 
 module type LOADER =
 sig
     type cat
+    type partial_annonation = (cat * int * int) list
 
     val read_ccgseeds : string -> Ccg_seed_types.ccgseeds
 
@@ -23,15 +25,14 @@ sig
     val read_cat_dict : string list -> file -> (string, bool array) Hashtbl.t
 
     val read_binary_rules : file -> (cat * cat, bool) Hashtbl.t
+
+    val read_proto_matrix : int -> Ccg_seed_types.ccgseed ->
+        string list * matrix * matrix * partial_annonation
 end
 
 module EnglishLoader : LOADER with type cat = EnglishCategories.t
 
 module JapaneseLoader : LOADER with type cat = JapaneseCategories.t
-
-type matrix = float Matrix.t
-
-val read_proto_matrix : int -> Ccg_seed_types.ccgseed -> string list * matrix * matrix
 
 open Grammar
 module CCGBank :
@@ -49,3 +50,11 @@ sig
     open EnglishGrammar
     val parse_file : file -> Attributes.t list * Tree.t list
 end
+
+module PartialParse :
+sig
+    type constraint_ = string * int * int
+    val parse : string -> constraint_ list * string list
+    val show : constraint_ list -> string
+end
+

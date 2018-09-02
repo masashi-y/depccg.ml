@@ -4,6 +4,12 @@
 
 (** {2 Types} *)
 
+type constraint_ = {
+  category : string;
+  start : int;
+  length : int;
+}
+
 type attribute = {
   lemma : string option;
   pos : string option;
@@ -22,6 +28,7 @@ type ccgseed = {
   cat_probs : matrix;
   dep_probs : matrix;
   attribs : attribute list;
+  constraints : constraint_ list;
 }
 
 type ccgseeds = {
@@ -32,6 +39,14 @@ type ccgseeds = {
 
 
 (** {2 Default values} *)
+
+val default_constraint_ : 
+  ?category:string ->
+  ?start:int ->
+  ?length:int ->
+  unit ->
+  constraint_
+(** [default_constraint_ ()] is the default value for type [constraint_] *)
 
 val default_attribute : 
   ?lemma:string option ->
@@ -55,6 +70,7 @@ val default_ccgseed :
   ?cat_probs:matrix ->
   ?dep_probs:matrix ->
   ?attribs:attribute list ->
+  ?constraints:constraint_ list ->
   unit ->
   ccgseed
 (** [default_ccgseed ()] is the default value for type [ccgseed] *)

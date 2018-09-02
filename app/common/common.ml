@@ -2,6 +2,8 @@
 open Depccg
 open Reader
 
+type input_format = Raw | Partial
+
 let progress_map ncores ~f lst =
     let size = List.length lst in
     let f' i x = let y = f x in
@@ -19,7 +21,30 @@ let try_load name f =
         prerr_endline ("[parser] " ^ name ^ " not found. Using empty one");
         (None, 0)
 
-let load_seeds ~tagger ~loader ~socket input =
+let read_input_and_tag ~verbose ~input_format ~tagger (inputs : string list) =
+    let open Ccg_seed_types in
+    match input_format with (* this part will be extended to support more input types *)
+    | Raw -> tagger inputs
+    | Partial ->
+        let constraints, sentences = List.split @@ List.map PartialParse.parse inputs in
+        if verbose then begin
+            Printf.eprintf "[parser] CONSTRAINED PARSING: reading partially annotated trees\n%!";
+            Printf.eprintf "[parser] SENTENCE_ID: CATEGORY(START, LENGTH)\n%!";
+            List.iteri (fun i constraint_ ->
+                Printf.eprintf "[parser] %d: %s\n%!" i (PartialParse.show constraint_)) constraints
+        end;
+        let tagged = tagger @@ List.map (String.concat " ") sentences in
+        let aux seed constraints =
+            match constraints, seed.constraints with
+            | [], _ -> seed
+            | cs, [] ->
+                let constraints = List.map
+                    (fun (category, start, length) -> {category; start; length}) cs in
+                {seed with constraints}
+            | _ -> invalid_arg "conflict occured: both input text and seed contains partial annotation" in
+    {tagged with seeds = List.map2 aux tagged.seeds constraints}
+
+let load_seeds ~verbose ~input_format ~tagger ~loader ~socket input =
     let module Loader = (val loader : LOADER) in
     match input with
     | None -> (let input = Utils.read_stdin () in
@@ -28,7 +53,7 @@ let load_seeds ~tagger ~loader ~socket input =
                   res
               with _ -> begin
                   Printf.eprintf "[parser] running tagger on the text from stdin\n%!";
-                  tagger input end)
+                  read_input_and_tag ~verbose ~input_format ~tagger input end)
     | Some i -> begin match socket with
         | Some s ->
             Printf.eprintf "[parser] connecting socket %s\n%!" s;
@@ -39,6 +64,6 @@ let load_seeds ~tagger ~loader ~socket input =
                Loader.load_ccgseeds i)
             else
             (Printf.eprintf "[parser] tagging inputs\n%!";
-            tagger (Utils.read_lines i))
+            read_input_and_tag ~verbose ~input_format ~tagger (Utils.read_lines i))
         end
     end

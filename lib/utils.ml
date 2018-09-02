@@ -200,6 +200,7 @@ module StateM : sig
     val eval : ('a, 'b) t -> 'b -> 'a
     val exec : ('a, 'b) t -> 'b -> 'b
     val pop : unit -> ('a, 'a list) t
+    val push : 'a -> (unit, 'a list) t
     val mapM : ('a -> ('b, 'c) t) -> 'a list -> ('b list, 'c) t
     val rev_mapM : ('a -> ('b, 'c) t) -> 'a list -> ('b list, 'c) t
     val fold_leftM : ('a -> 'b -> ('a, 'c) t) -> 'a -> 'b list -> ('a, 'c) t
@@ -242,6 +243,10 @@ end = struct
             | x :: xs -> 
                 put xs >>= fun () ->
                 return x
+
+    let push v =
+        get >>= fun s ->
+        put (v :: s)
 
     let rec mapM f = function
         | [] -> return []

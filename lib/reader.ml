@@ -4,10 +4,12 @@ open Cat
 open Attributes
 
 type file = string
+type matrix = float Matrix.t
 
 module type LOADER =
 sig
     type cat
+    type partial_annonation = (cat * int * int) list
 
     val read_ccgseeds : string -> Ccg_seed_types.ccgseeds
 
@@ -24,11 +26,15 @@ sig
     val read_cat_dict : string list -> file -> (string, bool array) Hashtbl.t
 
     val read_binary_rules : file -> (cat * cat, bool) Hashtbl.t
+
+    val read_proto_matrix : int -> Ccg_seed_types.ccgseed ->
+        string list * matrix * matrix * partial_annonation
 end
 
 module Loader (Cat : CATEGORIES) =
 struct
     type cat = Cat.t
+    type partial_annonation = (cat * int * int) list
 
     let read_ccgseeds_bytes bytes =
         Ccg_seed_pb.decode_ccgseeds (Pbrt.Decoder.of_bytes bytes)
@@ -98,6 +104,27 @@ struct
         let scan l = Scanf.sscanf l "%s %s" add_entry in
         read_lines file |> List.filter not_comment |> List.iter scan;
         res
+
+    let read_proto_matrix n_cats = 
+        let open Ccg_seed_types in
+        let error () = failwith "error in read_proto_matrix" in
+        let convert_matrix = function
+            | {values=v; shape=[i; j]} ->
+                    Matrix.reshape (Matrix.of_list v) (i, j)
+            | _ -> error () in
+        let convert_constraints {category; start; length} =
+            (Cat.parse category, start, length) in
+        fun {sentence; cat_probs; dep_probs; constraints} ->
+            (sentence,
+             convert_matrix cat_probs,
+             convert_matrix dep_probs,
+             List.map convert_constraints constraints)
+
+    (*
+       Parse partially annotated sentence (e.g. span and its root category).
+       Example: "(NP (NP/NP Michael) (NP Jordan)) is a professor at (NP University of California, Berkeley) (. .)"
+            ---> [("NP", 0, 1); ("NP", 1, 1); ("NP", 0, 2); ("NP", 6, 2); (".", 8, 1)]
+    *)
 end
 
 module EnglishLoader =
@@ -115,18 +142,6 @@ struct
 end
 
 module JapaneseLoader = Loader (JapaneseCategories)
-
-type matrix = float Matrix.t
-
-let read_proto_matrix n_cats = 
-    let open Ccg_seed_types in
-    let error () = failwith "error in read_proto_matrix" in
-    let convert = function
-        | {values=v; shape=[i; j]} -> Matrix.reshape (Matrix.of_list v) (i, j)
-        | _ -> error ()
-    in fun {sentence; cat_probs; dep_probs;}
-        -> (sentence, convert cat_probs, convert dep_probs)
-
 
 module CCGBank = struct
     open Grammar
@@ -245,6 +260,55 @@ struct
         | _ -> failwith "unknown xml node in candc"
 
 end
+
+module PartialParse =
+struct
+    type constraint_ = string * int * int
+
+    let preprocess s =
+        s |> Str.(global_replace (regexp "\\([()]\\)") " \\1 ")
+          |> Str.(split (regexp " +"))
+
+    let parse str =
+        let error () = invalid_arg (!%"failed to parse %s\n" str) in
+        let rec aux ptr stack = function
+            | [] -> ([], [])
+            | "(" :: cat :: rest ->
+                aux ptr ((cat, ptr) :: stack) rest
+            | ")" :: rest -> begin match stack with
+                | (cat, start) :: stack ->
+                    let constraints, words = aux ptr stack rest in
+                    ((cat, start, ptr - start) :: constraints, words)
+                | [] -> error ()
+            end
+            | word :: rest ->
+                let constraints, words = aux (ptr + 1) stack rest in
+                (constraints, word :: words)
+        in
+        aux 0 [] (preprocess str)
+
+    let show cs =
+        let _show (cat, start, length) =
+            !%"%s(%d, %d)" cat start length in
+        String.concat ", " (List.map _show cs)
+
+    (*
+    let () =
+        let example = "(NP (NP/NP Michael) (NP Jordan)) is a professor at (NP Berkeley university) (. .)" in
+        let res, words = parse example in
+        print_endline (String.concat " " words);
+        print_endline (show res);
+        let example = "(NP Michael Jordan) is a professor at (NP Berkeley university) (. .)" in
+        let res, words = parse example in
+        print_endline (String.concat ", " words);
+        print_endline (show res);
+        let example = "Michael Jordan is a professor at Berkeley university ." in
+        let res, words = parse example in
+        print_endline (String.concat " " words);
+        print_endline (show res)
+    *)
+end
+
 (*
 let () =
     let paths = read_lines "path" in

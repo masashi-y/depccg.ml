@@ -1,6 +1,12 @@
 [@@@ocaml.warning "-27-30-39"]
 
 
+type constraint_ = {
+  category : string;
+  start : int;
+  length : int;
+}
+
 type attribute = {
   lemma : string option;
   pos : string option;
@@ -19,12 +25,23 @@ type ccgseed = {
   cat_probs : matrix;
   dep_probs : matrix;
   attribs : attribute list;
+  constraints : constraint_ list;
 }
 
 type ccgseeds = {
   lang : string;
   categories : string list;
   seeds : ccgseed list;
+}
+
+let rec default_constraint_ 
+  ?category:((category:string) = "")
+  ?start:((start:int) = 0)
+  ?length:((length:int) = 0)
+  () : constraint_  = {
+  category;
+  start;
+  length;
 }
 
 let rec default_attribute 
@@ -53,12 +70,14 @@ let rec default_ccgseed
   ?cat_probs:((cat_probs:matrix) = default_matrix ())
   ?dep_probs:((dep_probs:matrix) = default_matrix ())
   ?attribs:((attribs:attribute list) = [])
+  ?constraints:((constraints:constraint_ list) = [])
   () : ccgseed  = {
   id;
   sentence;
   cat_probs;
   dep_probs;
   attribs;
+  constraints;
 }
 
 let rec default_ccgseeds 

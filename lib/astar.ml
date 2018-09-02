@@ -79,13 +79,22 @@ struct
             (Printf.eprintf (red ^^ "\n%s\n") msg (Printer.show_derivation (Attributes.default ()) tree); bar())
 
         let (unary, cand, binary) = (log "UNARY", log "CAND", log "BINARY")
+
+        let show_derivation tree = Printer.show_derivation (Attributes.default ()) tree
     end
 
     let fail = Tree.terminal Cat.np "FAILED"
 
     let rule_cache = ref @@ H.create 1000
 
-    let parse (sentence, cat_scores, dep_scores)
+    let overlap (start1, length1) (start2, length2) =
+        let end1 = start1 + length1 - 1 in
+        let end2 = start2 + length2 - 1 in
+        (start2 <= end1 && end1 <= end2 && start1 < start2 && start2 < end1)
+            || (start2 < start1 && start1 < end2 && start1 <= end2 && end2 <= end1)
+
+
+    let parse (sentence, cat_scores, dep_scores, constraints)
             ~cat_list
             ~unary_rules
             ~nbest
@@ -112,6 +121,18 @@ struct
                 with Not_found -> true)
             | None -> true
         in
+        let enqueue = match constraints with
+            | [] -> Q.add
+            | cs ->
+                fun id (Cell.{start; length; tree=Tree.{cat}} as elt) queue ->
+                    if List.exists (fun (cat0, start0, length0) ->
+                        overlap (start, length) (start0, length0)
+                        || (start, length) = (start0, length0)
+                           && cat <> cat0
+                           && not @@ H.mem unary_rules cat) constraints
+                    then queue
+                    else Q.add id elt queue
+        in
         let best_dep_scores = Array.make n_words neg_infinity
         and best_cat_scores = Array.make n_words neg_infinity in
         let init_queues = LL.fold_left (enumerate sentence) ~init:[]
@@ -127,7 +148,7 @@ struct
                     let tree = Tree.terminal cat w in
                     let (id, elt) = new_item tree ~in_score ~out_score:0.0
                                   ~start:w_i ~length:1
-                    in Q.add id elt q
+                    in enqueue id elt q
                 end else q)
                 in q :: lst
             ) in
@@ -147,7 +168,7 @@ struct
                     let out_score = M.get cat_out_scores (w_i, w_i + 1)
                                  +. dep_out_score_leaf in
                     let score = s +. out_score in
-                    Q.add k {p with Cell.score=score; out_score=out_score} q)
+                    enqueue k {p with Cell.score=score; out_score=out_score} q)
                 q w_q)
         in
         (* apply unary rules to a subtree & insert them into the chart *)
@@ -163,7 +184,7 @@ struct
                             ~out_score ~start ~length
                         in 
                         Log.unary elt;
-                        Q.add id elt q) else q)
+                        enqueue id elt q) else q)
         in
         (* apply binary rules to subtrees & insert them into the chart *)
         let apply_binaries ps q = match ps with
@@ -183,7 +204,7 @@ struct
                           let (id, elt) = new_item tree ~in_score ~out_score ~start:st1 ~length
                           in
                           Log.binary elt;
-                          Q.add id elt q)
+                          enqueue id elt q)
             | _ -> q
         in
 
@@ -198,7 +219,7 @@ struct
                 let in_score = score +. dep_score in
                 let (id, elt) = new_item tree ~in_score ~out_score:0.0 ~start
                                        ~length ~final:true in
-                Q.add id elt q
+                enqueue id elt q
         | _ -> q
         in
         (* main A* loop *)

@@ -3,6 +3,9 @@
 
 (** {2 Protobuf Encoding} *)
 
+val encode_constraint_ : Ccg_seed_types.constraint_ -> Pbrt.Encoder.t -> unit
+(** [encode_constraint_ v encoder] encodes [v] with the given [encoder] *)
+
 val encode_attribute : Ccg_seed_types.attribute -> Pbrt.Encoder.t -> unit
 (** [encode_attribute v encoder] encodes [v] with the given [encoder] *)
 
@@ -17,6 +20,9 @@ val encode_ccgseeds : Ccg_seed_types.ccgseeds -> Pbrt.Encoder.t -> unit
 
 
 (** {2 Protobuf Decoding} *)
+
+val decode_constraint_ : Pbrt.Decoder.t -> Ccg_seed_types.constraint_
+(** [decode_constraint_ decoder] decodes a [constraint_] value from [decoder] *)
 
 val decode_attribute : Pbrt.Decoder.t -> Ccg_seed_types.attribute
 (** [decode_attribute decoder] decodes a [attribute] value from [decoder] *)

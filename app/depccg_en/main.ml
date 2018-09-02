@@ -12,6 +12,11 @@ module EnPrinter = Printer.EnglishPrinter
 module EnLoader = Reader.EnglishLoader
 
 
+let parse_input_format = function
+    | "raw" -> Raw
+    | "partial" -> Partial
+    | s -> raise (Invalid_argument s)
+
 let parse_format s =
     if List.mem s ["auto"; "conll"; "deriv"; "html"; "ptb"; "prolog"; "htmls"; "xml"]
     then s else raise (Invalid_argument s)
@@ -39,6 +44,9 @@ type cfg = {
     format : string;       [@short "-f"] [@parse parse_format]
         (** output format: [auto, deriv, html, ptb, prolog, htmls, conll, xml] *)
 
+    input_format : input_format; [@short "-I"] [@parse parse_input_format]
+        (** input format: [raw, partial] *)
+
     socket : string option;[@short "-S"]
         (** use socket to contact with tagger *)
 
@@ -56,6 +64,7 @@ let default = {
     nbest = 1;
     beta = 0.00000001;
     format = "auto";
+    input_format = Raw;
     socket = None;
     ncores = 4;
     verbose = false;
@@ -88,13 +97,13 @@ let tag ~lib ~model ~warn ~annotator sents =
 
 let () =
     let {input; model; annotator; socket; nbest;
-        beta; format; ncores; verbose}, _ = argparse_cfg default "depccg_en" Sys.argv in
+        beta; format; input_format; ncores; verbose}, _ = argparse_cfg default "depccg_en" Sys.argv in
     let {ParserConfig.model = def_model; lib} = ParserConfig.load_en () in
     let model = CCOpt.get_or ~default:def_model model in
     let warn = verbose in
     let tagger = tag ~lib ~model ~annotator ~warn in
     let loader = (module EnLoader : LOADER) in
-    let ss = load_seeds ~tagger ~loader ~socket input in
+    let ss = load_seeds ~verbose ~input_format ~tagger ~loader ~socket input in
     let cat_list = Utils.enumerate (List.map EnCat.parse ss.categories)
     and n_cats = (List.length ss.categories)
     and unary_rules = EnLoader.read_unary_rules (model </> "unary_rules.txt") in
@@ -109,7 +118,7 @@ let () =
     let attribs = List.map Attributes.of_protobuf ss.seeds in
     let names = List.map (fun s -> s.id) ss.seeds in
     let res = progress_map ncores ss.seeds
-            ~f:(fun s -> EnAstarParser.parse (Reader.read_proto_matrix n_cats s)
+            ~f:(fun s -> EnAstarParser.parse (EnLoader.read_proto_matrix n_cats s)
             ~cat_list ~unary_rules ~seen_rules ~cat_dict
             ~nbest ~beta ~unary_penalty:0.1 ()) in
     Printf.eprintf "\nExecution time: %fs\n" (Sys.time() -. t);
