@@ -90,9 +90,54 @@ struct
     let overlap (start1, length1) (start2, length2) =
         let end1 = start1 + length1 - 1 in
         let end2 = start2 + length2 - 1 in
-        (start2 <= end1 && end1 <= end2 && start1 < start2 && start2 < end1)
-            || (start2 < start1 && start1 < end2 && start1 <= end2 && end2 <= end1)
+        (start2 <= end1 && end1 < end2 && start1 < start2 && start2 <= end1)
+            || (start2 < start1 && start1 <= end2 && start1 <= end2 && end2 < end1)
 
+    let build_constraints ~unary_rules constraints =
+        print_endline (Partial.show constraints);
+        let aux (terminals, nonterminals) = function
+            | Partial.N (Some category, start, length) ->
+                    let cat = Cat.parse category in
+                    let constraint_ (cat0, start0, length0) =
+                        overlap (start, length) (start0, length0)
+                            || (start, length) = (start0, length0)
+                               && cat <> cat0
+                               && not @@ H.mem unary_rules cat0 in
+                    (terminals, constraint_ :: nonterminals)
+            | Partial.N (None, start, length) ->
+                    let constraint_ (_, start0, length0) =
+                        overlap (start, length) (start0, length0) in
+                    (terminals, constraint_ :: nonterminals)
+            | Partial.T (category, start) ->
+                    let category = Cat.parse category in
+                    ((start, category) :: terminals, nonterminals)
+        in
+        let terminals, nonterminals = List.fold_left aux ([], []) constraints in
+        let enqueue_fun = match nonterminals with
+            | [] -> Q.add
+            | constraints ->
+                fun id (Cell.{start; length; tree=Tree.{cat}} as elt) queue ->
+                    if List.exists (fun constraint_ -> constraint_ (cat, start, length)) constraints
+                    then begin
+                        (* print_endline (Log.show_derivation elt.Cell.tree); *)
+                        queue
+                    end
+                    else Q.add id elt queue
+        in
+        enqueue_fun, terminals
+
+    let build_seen_rules = function
+        | Some rules -> Grammar.is_seen rules
+        | None -> fun _ -> true
+
+    let build_cat_dict = function
+        | Some d ->
+            fun w i -> begin
+                try (H.find d w).(i)
+                with Not_found -> true
+            end
+        | None ->
+            fun _ _ -> true
 
     let parse (sentence, cat_scores, dep_scores, constraints)
             ~cat_list
@@ -105,53 +150,46 @@ struct
             ?(beta=0.000001) () =
         let n_words = L.length sentence in
         let index = let i = ref 0 in fun () -> incr i; !i in
-        let new_item ?(final=false) tree ~in_score ~out_score ~start ~length = 
+        let new_cell ?(final=false) tree ~in_score ~out_score ~start ~length = 
             let id = index () in
-            let score=in_score +. out_score in
-            let elt = Cell.{id; in_score; out_score; score; start; length; final; tree}
-            in (id, elt)
+            let score = in_score +. out_score in
+            let elt = Cell.{id; in_score; out_score;
+                        score; start; length; final; tree} in
+            (id, elt)
         in
-        let is_seen cs = match seen_rules with
-            | Some rules -> is_seen rules cs
-            | None -> true
-        in
-        let cat_dict w i = match cat_dict with
-            | Some d ->
-                (try (H.find d w).(i)
-                with Not_found -> true)
-            | None -> true
-        in
-        let enqueue = match constraints with
-            | [] -> Q.add
-            | cs ->
-                fun id (Cell.{start; length; tree=Tree.{cat}} as elt) queue ->
-                    if List.exists (fun (cat0, start0, length0) ->
-                        overlap (start, length) (start0, length0)
-                        || (start, length) = (start0, length0)
-                           && cat <> cat0
-                           && not @@ H.mem unary_rules cat) constraints
-                    then queue
-                    else Q.add id elt queue
-        in
-        let best_dep_scores = Array.make n_words neg_infinity
-        and best_cat_scores = Array.make n_words neg_infinity in
-        let init_queues = LL.fold_left (enumerate sentence) ~init:[]
-        ~f:(fun lst (w_i, w) ->
+        let is_seen = build_seen_rules seen_rules in
+        let cat_dict = build_cat_dict cat_dict in
+        let enqueue, terminal_constraints =
+            build_constraints ~unary_rules constraints in
+        let best_dep_scores = Array.make n_words neg_infinity in
+        let best_cat_scores = Array.make n_words neg_infinity in
+        let init_queues = Utils.fold_lefti sentence ~init:[]
+        ~f:(fun w_i lst w ->
             best_dep_scores.(w_i) <- M.max_along_row dep_scores w_i;
             let seen_cats_for_w = cat_dict w in
-            let q = LL.fold_left cat_list ~init:Q.empty
-            ~f:(fun q (c_i, cat) ->
-                if seen_cats_for_w c_i then begin
-                    let in_score = M.get cat_scores (w_i, c_i) in
-                    if in_score > best_cat_scores.(w_i) then
-                        best_cat_scores.(w_i) <- in_score;
-                    let tree = Tree.terminal cat w in
-                    let (id, elt) = new_item tree ~in_score ~out_score:0.0
-                                  ~start:w_i ~length:1
-                    in enqueue id elt q
-                end else q)
-                in q :: lst
-            ) in
+            let queue = match List.assoc_opt w_i terminal_constraints with
+            | Some cat -> begin
+                let in_score = 0.0 in
+                best_cat_scores.(w_i) <- in_score;
+                let tree = Tree.terminal cat w in
+                let (id, elt) = new_cell tree ~in_score ~out_score:0.0
+                              ~start:w_i ~length:1 in
+                Q.sg id elt
+            end
+            | None -> begin
+                LL.fold_left cat_list ~init:Q.empty
+                ~f:(fun q (c_i, cat) ->
+                    if seen_cats_for_w c_i then begin
+                        let in_score = M.get cat_scores (w_i, c_i) in
+                        if in_score > best_cat_scores.(w_i) then
+                            best_cat_scores.(w_i) <- in_score;
+                        let tree = Tree.terminal cat w in
+                        let (id, elt) = new_cell tree ~in_score ~out_score:0.0
+                                      ~start:w_i ~length:1
+                        in enqueue id elt q
+                    end else q)
+            end in
+            queue :: lst) in
         let cat_out_scores = compute_outside_scores best_cat_scores n_words in
         let dep_out_scores = compute_outside_scores best_dep_scores n_words in
         let dep_out_score_leaf = Array.fold_left (+.) 0.0 best_dep_scores in
@@ -179,7 +217,7 @@ struct
                     ~init:q ~f:(fun cat q ->
                         if is_acceptable_unary cat op then
                         (let tree = Tree.make ~cat ~op:Rules.unary ~children:[t] in
-                         let (id, elt) = new_item tree
+                         let (id, elt) = new_cell tree
                             ~in_score:(s -. unary_penalty)
                             ~out_score ~start ~length
                         in 
@@ -196,12 +234,12 @@ struct
                       ~init:q ~f:(fun (op, cat) q ->
                           let length = l1 + l2 in
                           let (head, dep) = resolve_dependency (st1, st2) (l1, l2) in
-                          let in_score = s1 +. s2 +. M.get dep_scores (dep, head+1)
+                          let in_score = s1 +. s2 +. M.get dep_scores (dep, head + 1)
                           and out_score = M.get cat_out_scores (st1, st1 + length)
                                        +. M.get dep_out_scores (st1, st1 + length)
                                        -. best_dep_scores.(head) in
                           let tree = Tree.make ~cat ~op ~children:[t1; t2] in
-                          let (id, elt) = new_item tree ~in_score ~out_score ~start:st1 ~length
+                          let (id, elt) = new_cell tree ~in_score ~out_score ~start:st1 ~length
                           in
                           Log.binary elt;
                           enqueue id elt q)
@@ -217,7 +255,7 @@ struct
             when length = n_words && L.mem cat possible_root_cats ->
                 let dep_score = M.get dep_scores (start, 0) in
                 let in_score = score +. dep_score in
-                let (id, elt) = new_item tree ~in_score ~out_score:0.0 ~start
+                let (id, elt) = new_cell tree ~in_score ~out_score:0.0 ~start
                                        ~length ~final:true in
                 enqueue id elt q
         | _ -> q

@@ -313,9 +313,10 @@ let apply attrs tree =
     let attrs = Attributes.of_lists ~leaves ~nodes () in
     (fixed, attrs)
 
-(*
+
 open Printer
 
+(*
 let example =
     let open Grammar.EnglishGrammar.Notat in
     let attributes = Attributes.(of_lists
@@ -393,4 +394,5 @@ let example =
     ) in
     let tree, attrs = apply attributes tree in
     print_endline (EnglishPrinter.show_derivation attrs tree)
+
 *)

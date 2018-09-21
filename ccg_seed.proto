@@ -1,9 +1,21 @@
 syntax="proto2";
 
-message Constraint {
+message TerminalConstraint {
     required string category = 1;
-    required int32 start = 2;
-    required int32 length = 3;
+    required int32 start = 2 [(ocaml_type) = int_t];
+}
+
+message NonTerminalConstraint {
+    optional string category = 1;
+    required int32 start = 2 [(ocaml_type) = int_t];
+    required int32 length = 3 [(ocaml_type) = int_t];
+}
+
+message Constraint {
+    oneof t {
+        TerminalConstraint terminal = 1;
+        NonTerminalConstraint nonterminal = 2;
+    }
 }
 
 message Attribute {
@@ -30,5 +42,5 @@ message CCGSeed {
 
 message Matrix {
     repeated double values = 1 [packed = false];
-    repeated int32 shape = 2 [packed = false];
+    repeated int32 shape = 2 [packed = false, (ocaml_type) = int_t];
 }

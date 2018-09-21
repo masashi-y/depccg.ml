@@ -19,36 +19,29 @@ DESCRIPTOR = _descriptor.FileDescriptor(
   package='',
   syntax='proto2',
   serialized_options=None,
-  serialized_pb=_b('\n\x0e\x63\x63g_seed.proto\"=\n\nConstraint\x12\x10\n\x08\x63\x61tegory\x18\x01 \x02(\t\x12\r\n\x05start\x18\x02 \x02(\x05\x12\x0e\n\x06length\x18\x03 \x02(\x05\"F\n\tAttribute\x12\r\n\x05lemma\x18\x01 \x01(\t\x12\x0b\n\x03pos\x18\x02 \x01(\t\x12\r\n\x05\x63hunk\x18\x03 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x04 \x01(\t\"E\n\x08\x43\x43GSeeds\x12\x0c\n\x04lang\x18\x01 \x02(\t\x12\x12\n\ncategories\x18\x02 \x03(\t\x12\x17\n\x05seeds\x18\x03 \x03(\x0b\x32\x08.CCGSeed\"\x9e\x01\n\x07\x43\x43GSeed\x12\n\n\x02id\x18\x01 \x01(\t\x12\x10\n\x08sentence\x18\x02 \x03(\t\x12\x1a\n\tcat_probs\x18\x03 \x02(\x0b\x32\x07.Matrix\x12\x1a\n\tdep_probs\x18\x04 \x02(\x0b\x32\x07.Matrix\x12\x1b\n\x07\x61ttribs\x18\x05 \x03(\x0b\x32\n.Attribute\x12 \n\x0b\x63onstraints\x18\x06 \x03(\x0b\x32\x0b.Constraint\"/\n\x06Matrix\x12\x12\n\x06values\x18\x01 \x03(\x01\x42\x02\x10\x00\x12\x11\n\x05shape\x18\x02 \x03(\x05\x42\x02\x10\x00')
+  serialized_pb=_b('\n\x0e\x63\x63g_seed.proto\"5\n\x12TerminalConstraint\x12\x10\n\x08\x63\x61tegory\x18\x01 \x02(\t\x12\r\n\x05start\x18\x02 \x02(\x05\"H\n\x15NonTerminalConstraint\x12\x10\n\x08\x63\x61tegory\x18\x01 \x01(\t\x12\r\n\x05start\x18\x02 \x02(\x05\x12\x0e\n\x06length\x18\x03 \x02(\x05\"i\n\nConstraint\x12\'\n\x08terminal\x18\x01 \x01(\x0b\x32\x13.TerminalConstraintH\x00\x12-\n\x0bnonterminal\x18\x02 \x01(\x0b\x32\x16.NonTerminalConstraintH\x00\x42\x03\n\x01t\"F\n\tAttribute\x12\r\n\x05lemma\x18\x01 \x01(\t\x12\x0b\n\x03pos\x18\x02 \x01(\t\x12\r\n\x05\x63hunk\x18\x03 \x01(\t\x12\x0e\n\x06\x65ntity\x18\x04 \x01(\t\"E\n\x08\x43\x43GSeeds\x12\x0c\n\x04lang\x18\x01 \x02(\t\x12\x12\n\ncategories\x18\x02 \x03(\t\x12\x17\n\x05seeds\x18\x03 \x03(\x0b\x32\x08.CCGSeed\"\x9e\x01\n\x07\x43\x43GSeed\x12\n\n\x02id\x18\x01 \x01(\t\x12\x10\n\x08sentence\x18\x02 \x03(\t\x12\x1a\n\tcat_probs\x18\x03 \x02(\x0b\x32\x07.Matrix\x12\x1a\n\tdep_probs\x18\x04 \x02(\x0b\x32\x07.Matrix\x12\x1b\n\x07\x61ttribs\x18\x05 \x03(\x0b\x32\n.Attribute\x12 \n\x0b\x63onstraints\x18\x06 \x03(\x0b\x32\x0b.Constraint\"/\n\x06Matrix\x12\x12\n\x06values\x18\x01 \x03(\x01\x42\x02\x10\x00\x12\x11\n\x05shape\x18\x02 \x03(\x05\x42\x02\x10\x00')
 )
 
 
 
 
-_CONSTRAINT = _descriptor.Descriptor(
-  name='Constraint',
-  full_name='Constraint',
+_TERMINALCONSTRAINT = _descriptor.Descriptor(
+  name='TerminalConstraint',
+  full_name='TerminalConstraint',
   filename=None,
   file=DESCRIPTOR,
   containing_type=None,
   fields=[
     _descriptor.FieldDescriptor(
-      name='category', full_name='Constraint.category', index=0,
+      name='category', full_name='TerminalConstraint.category', index=0,
       number=1, type=9, cpp_type=9, label=2,
       has_default_value=False, default_value=_b("").decode('utf-8'),
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
       serialized_options=None, file=DESCRIPTOR),
     _descriptor.FieldDescriptor(
-      name='start', full_name='Constraint.start', index=1,
+      name='start', full_name='TerminalConstraint.start', index=1,
       number=2, type=5, cpp_type=1, label=2,
-      has_default_value=False, default_value=0,
-      message_type=None, enum_type=None, containing_type=None,
-      is_extension=False, extension_scope=None,
-      serialized_options=None, file=DESCRIPTOR),
-    _descriptor.FieldDescriptor(
-      name='length', full_name='Constraint.length', index=2,
-      number=3, type=5, cpp_type=1, label=2,
       has_default_value=False, default_value=0,
       message_type=None, enum_type=None, containing_type=None,
       is_extension=False, extension_scope=None,
@@ -66,7 +59,93 @@ _CONSTRAINT = _descriptor.Descriptor(
   oneofs=[
   ],
   serialized_start=18,
-  serialized_end=79,
+  serialized_end=71,
+)
+
+
+_NONTERMINALCONSTRAINT = _descriptor.Descriptor(
+  name='NonTerminalConstraint',
+  full_name='NonTerminalConstraint',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='category', full_name='NonTerminalConstraint.category', index=0,
+      number=1, type=9, cpp_type=9, label=1,
+      has_default_value=False, default_value=_b("").decode('utf-8'),
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='start', full_name='NonTerminalConstraint.start', index=1,
+      number=2, type=5, cpp_type=1, label=2,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='length', full_name='NonTerminalConstraint.length', index=2,
+      number=3, type=5, cpp_type=1, label=2,
+      has_default_value=False, default_value=0,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto2',
+  extension_ranges=[],
+  oneofs=[
+  ],
+  serialized_start=73,
+  serialized_end=145,
+)
+
+
+_CONSTRAINT = _descriptor.Descriptor(
+  name='Constraint',
+  full_name='Constraint',
+  filename=None,
+  file=DESCRIPTOR,
+  containing_type=None,
+  fields=[
+    _descriptor.FieldDescriptor(
+      name='terminal', full_name='Constraint.terminal', index=0,
+      number=1, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+    _descriptor.FieldDescriptor(
+      name='nonterminal', full_name='Constraint.nonterminal', index=1,
+      number=2, type=11, cpp_type=10, label=1,
+      has_default_value=False, default_value=None,
+      message_type=None, enum_type=None, containing_type=None,
+      is_extension=False, extension_scope=None,
+      serialized_options=None, file=DESCRIPTOR),
+  ],
+  extensions=[
+  ],
+  nested_types=[],
+  enum_types=[
+  ],
+  serialized_options=None,
+  is_extendable=False,
+  syntax='proto2',
+  extension_ranges=[],
+  oneofs=[
+    _descriptor.OneofDescriptor(
+      name='t', full_name='Constraint.t',
+      index=0, containing_type=None, fields=[]),
+  ],
+  serialized_start=147,
+  serialized_end=252,
 )
 
 
@@ -117,8 +196,8 @@ _ATTRIBUTE = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=81,
-  serialized_end=151,
+  serialized_start=254,
+  serialized_end=324,
 )
 
 
@@ -162,8 +241,8 @@ _CCGSEEDS = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=153,
-  serialized_end=222,
+  serialized_start=326,
+  serialized_end=395,
 )
 
 
@@ -228,8 +307,8 @@ _CCGSEED = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=225,
-  serialized_end=383,
+  serialized_start=398,
+  serialized_end=556,
 )
 
 
@@ -266,21 +345,45 @@ _MATRIX = _descriptor.Descriptor(
   extension_ranges=[],
   oneofs=[
   ],
-  serialized_start=385,
-  serialized_end=432,
+  serialized_start=558,
+  serialized_end=605,
 )
 
+_CONSTRAINT.fields_by_name['terminal'].message_type = _TERMINALCONSTRAINT
+_CONSTRAINT.fields_by_name['nonterminal'].message_type = _NONTERMINALCONSTRAINT
+_CONSTRAINT.oneofs_by_name['t'].fields.append(
+  _CONSTRAINT.fields_by_name['terminal'])
+_CONSTRAINT.fields_by_name['terminal'].containing_oneof = _CONSTRAINT.oneofs_by_name['t']
+_CONSTRAINT.oneofs_by_name['t'].fields.append(
+  _CONSTRAINT.fields_by_name['nonterminal'])
+_CONSTRAINT.fields_by_name['nonterminal'].containing_oneof = _CONSTRAINT.oneofs_by_name['t']
 _CCGSEEDS.fields_by_name['seeds'].message_type = _CCGSEED
 _CCGSEED.fields_by_name['cat_probs'].message_type = _MATRIX
 _CCGSEED.fields_by_name['dep_probs'].message_type = _MATRIX
 _CCGSEED.fields_by_name['attribs'].message_type = _ATTRIBUTE
 _CCGSEED.fields_by_name['constraints'].message_type = _CONSTRAINT
+DESCRIPTOR.message_types_by_name['TerminalConstraint'] = _TERMINALCONSTRAINT
+DESCRIPTOR.message_types_by_name['NonTerminalConstraint'] = _NONTERMINALCONSTRAINT
 DESCRIPTOR.message_types_by_name['Constraint'] = _CONSTRAINT
 DESCRIPTOR.message_types_by_name['Attribute'] = _ATTRIBUTE
 DESCRIPTOR.message_types_by_name['CCGSeeds'] = _CCGSEEDS
 DESCRIPTOR.message_types_by_name['CCGSeed'] = _CCGSEED
 DESCRIPTOR.message_types_by_name['Matrix'] = _MATRIX
 _sym_db.RegisterFileDescriptor(DESCRIPTOR)
+
+TerminalConstraint = _reflection.GeneratedProtocolMessageType('TerminalConstraint', (_message.Message,), dict(
+  DESCRIPTOR = _TERMINALCONSTRAINT,
+  __module__ = 'ccg_seed_pb2'
+  # @@protoc_insertion_point(class_scope:TerminalConstraint)
+  ))
+_sym_db.RegisterMessage(TerminalConstraint)
+
+NonTerminalConstraint = _reflection.GeneratedProtocolMessageType('NonTerminalConstraint', (_message.Message,), dict(
+  DESCRIPTOR = _NONTERMINALCONSTRAINT,
+  __module__ = 'ccg_seed_pb2'
+  # @@protoc_insertion_point(class_scope:NonTerminalConstraint)
+  ))
+_sym_db.RegisterMessage(NonTerminalConstraint)
 
 Constraint = _reflection.GeneratedProtocolMessageType('Constraint', (_message.Message,), dict(
   DESCRIPTOR = _CONSTRAINT,

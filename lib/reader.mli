@@ -27,7 +27,7 @@ sig
     val read_binary_rules : file -> (cat * cat, bool) Hashtbl.t
 
     val read_proto_matrix : int -> Ccg_seed_types.ccgseed ->
-        string list * matrix * matrix * partial_annonation
+        string list * matrix * matrix * Partial.constraints
 end
 
 module EnglishLoader : LOADER with type cat = EnglishCategories.t
@@ -49,12 +49,5 @@ module CAndCXML :
 sig
     open EnglishGrammar
     val parse_file : file -> Attributes.t list * Tree.t list
-end
-
-module PartialParse :
-sig
-    type constraint_ = string * int * int
-    val parse : string -> constraint_ list * string list
-    val show : constraint_ list -> string
 end
 

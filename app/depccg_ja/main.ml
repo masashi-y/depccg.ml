@@ -18,7 +18,7 @@ let parse_input_format = function
     | s -> raise (Invalid_argument s)
 
 let parse_format s =
-    if List.mem s ["auto"; "conll"; "deriv"; "html"; "ptb"; "htmls"]
+    if List.mem s ["auto"; "conll"; "deriv"; "html"; "ptb"; "htmls"; "svg"]
     then s else raise (Invalid_argument s)
 
 type cfg = {
@@ -35,7 +35,7 @@ type cfg = {
         (** beta value for pruning *)
 
     format : string;       [@short "-f"] [@parse parse_format]
-        (** output format: [auto, deriv, html, ptb, htmls, conll] *)
+        (** output format: [auto, deriv, html, ptb, htmls, conll, svg] *)
 
     input_format : input_format; [@short "-I"] [@parse parse_input_format]
         (** input format: [raw, partial] *)

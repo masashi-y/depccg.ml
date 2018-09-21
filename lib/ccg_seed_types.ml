@@ -1,11 +1,20 @@
 [@@@ocaml.warning "-27-30-39"]
 
 
-type constraint_ = {
+type terminal_constraint = {
   category : string;
+  start : int;
+}
+
+type non_terminal_constraint = {
+  category : string option;
   start : int;
   length : int;
 }
+
+type constraint_ =
+  | Terminal of terminal_constraint
+  | Nonterminal of non_terminal_constraint
 
 type attribute = {
   lemma : string option;
@@ -34,15 +43,25 @@ type ccgseeds = {
   seeds : ccgseed list;
 }
 
-let rec default_constraint_ 
+let rec default_terminal_constraint 
   ?category:((category:string) = "")
   ?start:((start:int) = 0)
+  () : terminal_constraint  = {
+  category;
+  start;
+}
+
+let rec default_non_terminal_constraint 
+  ?category:((category:string option) = None)
+  ?start:((start:int) = 0)
   ?length:((length:int) = 0)
-  () : constraint_  = {
+  () : non_terminal_constraint  = {
   category;
   start;
   length;
 }
+
+let rec default_constraint_ () : constraint_ = Terminal (default_terminal_constraint ())
 
 let rec default_attribute 
   ?lemma:((lemma:string option) = None)

@@ -142,7 +142,7 @@ struct
     let match_with_type_raised = function
         | {cat; children=[{cat=cat'} as child]}
             when Cat.is_type_raised cat &&
-            Cat.(cat' =:= np || cat' =:= pp) -> Some (cat, child)
+            Cat.(cat' =:= np || cat' =:= pp_) -> Some (cat, child)
         | _ -> None
 
     let match_with_unary = function

@@ -21,7 +21,7 @@ sig
     val s : t
     val n : t
     val np : t
-    val pp : t
+    val pp_ : t
     val (/:) : t -> t -> t
     val (|:) : t -> t -> t
     val (||:) : t -> t -> t
@@ -37,6 +37,7 @@ sig
     val unify : t -> t -> t -> t
     val parse : string -> t
     val show : ?bracket:bool -> t -> string
+    val pp : Format.formatter -> t -> unit
 end
 
 
@@ -57,7 +58,7 @@ struct
     let s = `S Feature.none
     and n = `N Feature.none
     and np = `NP Feature.none
-    and pp = `PP Feature.none
+    and pp_ = `PP Feature.none
     and (/:) x y = `Fwd (x, y)
     and (|:) x y = `Bwd (x, y)
     and (||:) x y = `Either (x, y)
@@ -90,6 +91,8 @@ struct
                                 (show ~bracket:true x) (show ~bracket:true y)
         | `Punct str  -> str
 
+    let pp out cat =
+        Format.pp_print_string out (show cat)
 
     let preprocess s =
         s |> Str.(global_replace (regexp "\\([]\\[()/\\\\|]\\)") " \\1 ")
@@ -124,7 +127,7 @@ struct
         | `S _        -> s
         | `N _        -> n
         | `NP _       -> np
-        | `PP _       -> pp
+        | `PP _       -> pp_
         | `Fwd (x, y) -> remove_all_feat x /: remove_all_feat y
         | `Bwd (x, y) -> remove_all_feat x |: remove_all_feat y
         | `Either (x, y) -> remove_all_feat x ||: remove_all_feat y
@@ -134,7 +137,7 @@ struct
         | `S f when List.mem f feats  -> s
         | `N f when List.mem f feats  -> n
         | `NP f when List.mem f feats -> np
-        | `PP f when List.mem f feats -> pp
+        | `PP f when List.mem f feats -> pp_
         | `Fwd (x, y)
             -> remove_some_feat feats x /: remove_some_feat feats y
         | `Bwd (x, y)
@@ -243,7 +246,7 @@ struct
         let s = s
         let n = n
         let np = np
-        let pp = pp
+        let pp = pp_
         let s_ f = `S f
         let n_ f = `N f
         let np_ f = `NP f

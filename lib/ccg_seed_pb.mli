@@ -3,6 +3,12 @@
 
 (** {2 Protobuf Encoding} *)
 
+val encode_terminal_constraint : Ccg_seed_types.terminal_constraint -> Pbrt.Encoder.t -> unit
+(** [encode_terminal_constraint v encoder] encodes [v] with the given [encoder] *)
+
+val encode_non_terminal_constraint : Ccg_seed_types.non_terminal_constraint -> Pbrt.Encoder.t -> unit
+(** [encode_non_terminal_constraint v encoder] encodes [v] with the given [encoder] *)
+
 val encode_constraint_ : Ccg_seed_types.constraint_ -> Pbrt.Encoder.t -> unit
 (** [encode_constraint_ v encoder] encodes [v] with the given [encoder] *)
 
@@ -20,6 +26,12 @@ val encode_ccgseeds : Ccg_seed_types.ccgseeds -> Pbrt.Encoder.t -> unit
 
 
 (** {2 Protobuf Decoding} *)
+
+val decode_terminal_constraint : Pbrt.Decoder.t -> Ccg_seed_types.terminal_constraint
+(** [decode_terminal_constraint decoder] decodes a [terminal_constraint] value from [decoder] *)
+
+val decode_non_terminal_constraint : Pbrt.Decoder.t -> Ccg_seed_types.non_terminal_constraint
+(** [decode_non_terminal_constraint decoder] decodes a [non_terminal_constraint] value from [decoder] *)
 
 val decode_constraint_ : Pbrt.Decoder.t -> Ccg_seed_types.constraint_
 (** [decode_constraint_ decoder] decodes a [constraint_] value from [decoder] *)

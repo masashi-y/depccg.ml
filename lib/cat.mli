@@ -18,7 +18,7 @@ sig
     val s : t
     val n : t
     val np : t
-    val pp : t
+    val pp_ : t
     val (/:) : t -> t -> t
     val (|:) : t -> t -> t
     val (||:) : t -> t -> t
@@ -34,6 +34,7 @@ sig
     val unify : t -> t -> t -> t
     val parse : string -> t
     val show : ?bracket:bool -> t -> string
+    val pp : Format.formatter -> t -> unit
 end
 
 

@@ -4,6 +4,6 @@
 (library (
     (name depccg)
     (preprocess (pps (ppx_monadic ppx_sexp_conv)))
-    (libraries (str psq ocaml-protoc ppx_monadic unix logic containers sexplib yaml yaml.unix xml-light))
+    (libraries (str psq ocaml-protoc ppx_monadic unix logic containers sexplib yaml yaml.unix xml-light shexp.process))
 ))
 

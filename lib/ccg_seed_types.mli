@@ -4,11 +4,20 @@
 
 (** {2 Types} *)
 
-type constraint_ = {
+type terminal_constraint = {
   category : string;
+  start : int;
+}
+
+type non_terminal_constraint = {
+  category : string option;
   start : int;
   length : int;
 }
+
+type constraint_ =
+  | Terminal of terminal_constraint
+  | Nonterminal of non_terminal_constraint
 
 type attribute = {
   lemma : string option;
@@ -40,12 +49,22 @@ type ccgseeds = {
 
 (** {2 Default values} *)
 
-val default_constraint_ : 
+val default_terminal_constraint : 
   ?category:string ->
+  ?start:int ->
+  unit ->
+  terminal_constraint
+(** [default_terminal_constraint ()] is the default value for type [terminal_constraint] *)
+
+val default_non_terminal_constraint : 
+  ?category:string option ->
   ?start:int ->
   ?length:int ->
   unit ->
-  constraint_
+  non_terminal_constraint
+(** [default_non_terminal_constraint ()] is the default value for type [non_terminal_constraint] *)
+
+val default_constraint_ : unit -> constraint_
 (** [default_constraint_ ()] is the default value for type [constraint_] *)
 
 val default_attribute : 

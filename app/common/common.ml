@@ -26,20 +26,19 @@ let read_input_and_tag ~verbose ~input_format ~tagger (inputs : string list) =
     match input_format with (* this part will be extended to support more input types *)
     | Raw -> tagger inputs
     | Partial ->
-        let constraints, sentences = List.split @@ List.map PartialParse.parse inputs in
+        let constraints, sentences = List.split @@ List.map Partial.parse inputs in
         if verbose then begin
             Printf.eprintf "[parser] CONSTRAINED PARSING: reading partially annotated trees\n%!";
             Printf.eprintf "[parser] SENTENCE_ID: CATEGORY(START, LENGTH)\n%!";
             List.iteri (fun i constraint_ ->
-                Printf.eprintf "[parser] %d: %s\n%!" i (PartialParse.show constraint_)) constraints
+                Printf.eprintf "[parser] %d: %s\n%!" i (Partial.show constraint_)) constraints
         end;
         let tagged = tagger @@ List.map (String.concat " ") sentences in
         let aux seed constraints =
             match constraints, seed.constraints with
             | [], _ -> seed
             | cs, [] ->
-                let constraints = List.map
-                    (fun (category, start, length) -> {category; start; length}) cs in
+                let constraints = List.map Partial.to_protobuf cs in
                 {seed with constraints}
             | _ -> invalid_arg "conflict occured: both input text and seed contains partial annotation" in
     {tagged with seeds = List.map2 aux tagged.seeds constraints}

@@ -15,6 +15,13 @@ let list_init n ~f =
         else aux (i-1) (f (i-1) :: accum) in
     aux n []
 
+let fold_lefti ~f ~init =
+    let rec aux index init = function
+        | [] -> init
+        | x :: xs ->
+            aux (index + 1) (f index init x) xs in
+    aux 0 init
+
 let walk_directory_tree dir pattern =
     let re = Str.regexp pattern in
     let select str = Str.string_match re str 0 in

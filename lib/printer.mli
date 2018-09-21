@@ -16,7 +16,8 @@ sig
 
     val show_html_trees : Tree.scored list -> Xml.xml
 
-    val show_html_trees_separated : string option list -> Tree.scored list -> unit
+    val show_html_trees_separated : (Tree.scored -> string * string) -> string option list -> Tree.scored list -> unit
+
     val output_results : string -> string option list -> Tree.scored list -> unit
 end
 
@@ -43,7 +44,8 @@ module EnglishPrinter : sig
 
     val show_html_trees : Tree.scored list -> Xml.xml
 
-    val show_html_trees_separated : string option list -> Tree.scored list -> unit
+    val show_html_trees_separated : (Tree.scored -> string * string) -> string option list -> Tree.scored list -> unit
+
     val show_prolog : Attributes.t list -> Tree.scored list -> unit
 
     val show_xml_trees : Attributes.t list -> Tree.scored list -> string

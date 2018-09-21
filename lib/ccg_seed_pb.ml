@@ -1,13 +1,23 @@
 [@@@ocaml.warning "-27-30-39"]
 
-type constraint__mutable = {
+type terminal_constraint_mutable = {
   mutable category : string;
+  mutable start : int;
+}
+
+let default_terminal_constraint_mutable () : terminal_constraint_mutable = {
+  category = "";
+  start = 0;
+}
+
+type non_terminal_constraint_mutable = {
+  mutable category : string option;
   mutable start : int;
   mutable length : int;
 }
 
-let default_constraint__mutable () : constraint__mutable = {
-  category = "";
+let default_non_terminal_constraint_mutable () : non_terminal_constraint_mutable = {
+  category = None;
   start = 0;
   length = 0;
 }
@@ -67,10 +77,9 @@ let default_ccgseeds_mutable () : ccgseeds_mutable = {
 }
 
 
-let rec decode_constraint_ d =
-  let v = default_constraint__mutable () in
+let rec decode_terminal_constraint d =
+  let v = default_terminal_constraint_mutable () in
   let continue__= ref true in
-  let length_is_set = ref false in
   let start_is_set = ref false in
   let category_is_set = ref false in
   while !continue__ do
@@ -81,27 +90,69 @@ let rec decode_constraint_ d =
       v.category <- Pbrt.Decoder.string d; category_is_set := true;
     end
     | Some (1, pk) -> 
-      Pbrt.Decoder.unexpected_payload "Message(constraint_), field(1)" pk
+      Pbrt.Decoder.unexpected_payload "Message(terminal_constraint), field(1)" pk
     | Some (2, Pbrt.Varint) -> begin
       v.start <- Pbrt.Decoder.int_as_varint d; start_is_set := true;
     end
     | Some (2, pk) -> 
-      Pbrt.Decoder.unexpected_payload "Message(constraint_), field(2)" pk
-    | Some (3, Pbrt.Varint) -> begin
-      v.length <- Pbrt.Decoder.int_as_varint d; length_is_set := true;
-    end
-    | Some (3, pk) -> 
-      Pbrt.Decoder.unexpected_payload "Message(constraint_), field(3)" pk
+      Pbrt.Decoder.unexpected_payload "Message(terminal_constraint), field(2)" pk
     | Some (_, payload_kind) -> Pbrt.Decoder.skip d payload_kind
   done;
-  begin if not !length_is_set then Pbrt.Decoder.missing_field "length" end;
   begin if not !start_is_set then Pbrt.Decoder.missing_field "start" end;
   begin if not !category_is_set then Pbrt.Decoder.missing_field "category" end;
   ({
     Ccg_seed_types.category = v.category;
     Ccg_seed_types.start = v.start;
+  } : Ccg_seed_types.terminal_constraint)
+
+let rec decode_non_terminal_constraint d =
+  let v = default_non_terminal_constraint_mutable () in
+  let continue__= ref true in
+  let length_is_set = ref false in
+  let start_is_set = ref false in
+  while !continue__ do
+    match Pbrt.Decoder.key d with
+    | None -> (
+    ); continue__ := false
+    | Some (1, Pbrt.Bytes) -> begin
+      v.category <- Some (Pbrt.Decoder.string d);
+    end
+    | Some (1, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(non_terminal_constraint), field(1)" pk
+    | Some (2, Pbrt.Varint) -> begin
+      v.start <- Pbrt.Decoder.int_as_varint d; start_is_set := true;
+    end
+    | Some (2, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(non_terminal_constraint), field(2)" pk
+    | Some (3, Pbrt.Varint) -> begin
+      v.length <- Pbrt.Decoder.int_as_varint d; length_is_set := true;
+    end
+    | Some (3, pk) -> 
+      Pbrt.Decoder.unexpected_payload "Message(non_terminal_constraint), field(3)" pk
+    | Some (_, payload_kind) -> Pbrt.Decoder.skip d payload_kind
+  done;
+  begin if not !length_is_set then Pbrt.Decoder.missing_field "length" end;
+  begin if not !start_is_set then Pbrt.Decoder.missing_field "start" end;
+  ({
+    Ccg_seed_types.category = v.category;
+    Ccg_seed_types.start = v.start;
     Ccg_seed_types.length = v.length;
-  } : Ccg_seed_types.constraint_)
+  } : Ccg_seed_types.non_terminal_constraint)
+
+let rec decode_constraint_ d = 
+  let rec loop () = 
+    let ret:Ccg_seed_types.constraint_ = match Pbrt.Decoder.key d with
+      | None -> Pbrt.Decoder.malformed_variant "constraint_"
+      | Some (1, _) -> Ccg_seed_types.Terminal (decode_terminal_constraint (Pbrt.Decoder.nested d))
+      | Some (2, _) -> Ccg_seed_types.Nonterminal (decode_non_terminal_constraint (Pbrt.Decoder.nested d))
+      | Some (n, payload_kind) -> (
+        Pbrt.Decoder.skip d payload_kind; 
+        loop () 
+      )
+    in
+    ret
+  in
+  loop ()
 
 let rec decode_attribute d =
   let v = default_attribute_mutable () in
@@ -254,14 +305,35 @@ let rec decode_ccgseeds d =
     Ccg_seed_types.seeds = v.seeds;
   } : Ccg_seed_types.ccgseeds)
 
-let rec encode_constraint_ (v:Ccg_seed_types.constraint_) encoder = 
+let rec encode_terminal_constraint (v:Ccg_seed_types.terminal_constraint) encoder = 
   Pbrt.Encoder.key (1, Pbrt.Bytes) encoder; 
   Pbrt.Encoder.string v.Ccg_seed_types.category encoder;
+  Pbrt.Encoder.key (2, Pbrt.Varint) encoder; 
+  Pbrt.Encoder.int_as_varint v.Ccg_seed_types.start encoder;
+  ()
+
+let rec encode_non_terminal_constraint (v:Ccg_seed_types.non_terminal_constraint) encoder = 
+  begin match v.Ccg_seed_types.category with
+  | Some x -> 
+    Pbrt.Encoder.key (1, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.string x encoder;
+  | None -> ();
+  end;
   Pbrt.Encoder.key (2, Pbrt.Varint) encoder; 
   Pbrt.Encoder.int_as_varint v.Ccg_seed_types.start encoder;
   Pbrt.Encoder.key (3, Pbrt.Varint) encoder; 
   Pbrt.Encoder.int_as_varint v.Ccg_seed_types.length encoder;
   ()
+
+let rec encode_constraint_ (v:Ccg_seed_types.constraint_) encoder = 
+  begin match v with
+  | Ccg_seed_types.Terminal x ->
+    Pbrt.Encoder.key (1, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.nested (encode_terminal_constraint x) encoder;
+  | Ccg_seed_types.Nonterminal x ->
+    Pbrt.Encoder.key (2, Pbrt.Bytes) encoder; 
+    Pbrt.Encoder.nested (encode_non_terminal_constraint x) encoder;
+  end
 
 let rec encode_attribute (v:Ccg_seed_types.attribute) encoder = 
   begin match v.Ccg_seed_types.lemma with

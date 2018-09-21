@@ -27,7 +27,8 @@ sig
 
     val show_html_trees : Tree.scored list -> Xml.xml
 
-    val show_html_trees_separated : string option list -> Tree.scored list -> unit
+    val show_html_trees_separated : (Tree.scored -> string * string) ->
+        string option list -> Tree.scored list -> unit
 
     val output_results : string -> string option list -> Tree.scored list -> unit
 end
@@ -196,20 +197,20 @@ struct
         ]))
 
 
-    let show_html_trees_separated names tss =
+    let show_html_trees_separated show_fun names tss =
         let dir = !% "results_%s" (current_time_string ()) in
-        let rec new_fname i n res =
+        let rec new_fname suffix i n res =
             if Sys.file_exists (dir </> res) then
-            new_fname (i+1) n (!%"%s.%i.html" n i)
+            new_fname suffix (i+1) n (!%"%s.%i.%s" n i suffix)
             else res in
         let f i (name, ts) =
-            let res = show_html_trees [ts] in
+            let res, suffix = show_fun ts in
             let hd = snd (List.hd ts) in
             let sent = String.concat " " (Tree.terminals hd) in
             let fname = match name with
-                | None -> !%"%d.html" i
-                | Some n -> new_fname 1 n (!%"%s.html" n) in
-            write_file (dir </> fname) (Xml.to_string_fmt res);
+                | None -> !%"%d.%s" i suffix
+                | Some n -> new_fname suffix 1 n (!%"%s.%s" n suffix) in
+            write_file (dir </> fname) res;
             fname, sent in
         let () = Unix.mkdir dir 0o744 in
         let filenames = List.mapi f (List.combine names tss) in
@@ -243,6 +244,103 @@ struct
             ])));
         Printf.eprintf "write results to directory: %s\n" dir
 
+    module Svg : sig
+        val pp : Format.formatter -> Tree.t -> unit
+
+        val show : Tree.t -> string
+
+        val pp_scored : Format.formatter -> Tree.scored -> unit
+
+        val show_scored : Tree.scored -> string
+
+        val run_graphviz : Tree.scored -> string * string
+    end = struct
+        let escape_str s =
+            let open Buffer in
+            let buf = create 10 in
+            let f = function
+                | '\\' -> add_string buf "\\\\"
+                | c -> add_char buf c in
+            String.iter f s;
+            contents buf
+
+        let show_cat out (id, cat) =
+            Format.fprintf out
+"e%d [fontname=\"Helvetica,sans-Serif\", fontsize=12, shape = plain, label = \"%s\"]\n"
+            id (escape_str @@ Cat.show cat)
+
+        let show_word out (id, word) =
+            Format.fprintf out
+"e%d [margin=0.001, height=0.2, color = \"#d3d3d3\", fillcolor = \"#d3d3d3\", shape = rect, style=\"filled\", label = \"%s\"]\n"
+            id word
+
+        let header =
+"digraph G { 
+rankdir = TB;
+splines = polyline;
+subgraph {
+    edge [
+        dir = none;
+        sametail=h1
+    ]\n"
+
+        let footer out same_rank =
+            let same_rank = String.concat "; " same_rank in
+            Format.fprintf out
+"{rank = same; %s;}
+    }
+}" same_rank
+
+        let incr = StateM.(
+            get >>= fun i ->
+            put (i + 1) >>= fun () ->
+            return i)
+
+        let pp out tree =
+            let rec aux parent = StateM.(function
+                | {cat; str; children=[]} ->
+                    incr >>= fun cat_id ->
+                    incr >>= fun word_id ->
+                    Format.fprintf out
+                    "e%d -> e%d\ne%d -> e%d\n%a\n%a\n"
+                        parent cat_id cat_id word_id
+                        show_cat (cat_id, cat) show_word (word_id, str);
+                    return ["e" ^ string_of_int word_id]
+                | {cat; children} ->
+                    incr >>= fun cat_id ->
+                    Format.fprintf out "e%d -> e%d\n%a\n"
+                        parent cat_id show_cat (cat_id, cat);
+                    mapM (aux cat_id) children >>= fun word_ids ->
+                    return (List.flatten word_ids)
+            ) in
+            Format.pp_print_string out header;
+            Format.pp_print_string out
+            "e0 [fontname=\"Helvetica,sans-Serif\", fontsize=12, shape = plain, label = \"root\"]\n";
+            footer out (StateM.eval (aux 0 tree) 1)
+
+        let show tree = Format.asprintf "%a" pp tree
+
+        let pp_scored out = function
+            | (_, tree) :: _ -> pp out tree
+            | _ -> invalid_arg "failed in Svg.pp_scored"
+
+        let show_scored tree = Format.asprintf "%a" pp_scored tree
+
+        let warned = ref false
+
+        let run_graphviz tree =
+            let dot = show_scored tree in
+            try
+                Shexp_process.(eval Infix.(echo dot |- run "dot" ["-Tsvg"] |- read_all)), "svg"
+            with Failure log ->
+                if not !warned then begin
+                    prerr_endline ("[parser] error during running dot: " ^ log);
+                    prerr_endline "[parser] Saving dot files instead.";
+                    warned := true;
+                end;
+                dot, "dot"
+    end
+
     let output_results fmt names res =
         let f printfun i =
             List.iter (fun (_, t) -> p "ID=%i\n%s\n" i (printfun t)) in
@@ -257,9 +355,10 @@ struct
         | "deriv" -> List.iteri (f (show_derivation (Attributes.default ()))) res
         | "ptb"   -> List.iteri (f (show_ptb 0)) res
         | "html"  -> pr (Xml.to_string_fmt (show_html_trees res))
-        | "htmls" -> show_html_trees_separated names res
+        | "htmls" -> show_html_trees_separated
+                    (fun ts -> (Xml.to_string_fmt @@ show_html_trees [ts], "html")) names res
+        | "svg"   -> show_html_trees_separated (fun ts -> Svg.run_graphviz ts) names res
         | _ -> invalid_arg (!%"Not accepted output format: %s\n" fmt)
-
 end
 
 module EnglishPrinter = struct
@@ -273,6 +372,15 @@ module EnglishPrinter = struct
     module Prolog : sig
         val show : int -> Attributes.t -> Tree.t -> string
     end = struct
+        let escape_str s =
+            let open Buffer in
+            let buf = create 10 in
+            let f = function
+                | '\'' -> add_string buf "\\'"
+                | c -> add_char buf c in
+            String.iter f s;
+            contents buf
+
         let rec remove_noisy_rules ({op; cat; str; children} as self) = 
             let children = List.map remove_noisy_rules children in
             match children with [{cat=lcat}; {cat=rcat}] -> begin
@@ -330,15 +438,6 @@ module EnglishPrinter = struct
             | `Fwd (_, y)
             | `Bwd (_, y) -> y
             | _ -> invalid_arg "failed in get_arg"
-
-        let escape_str s =
-            let open Buffer in
-            let buf = create 10 in
-            let f = function
-                | '\'' -> add_string buf "\\'"
-                | c -> add_char buf c
-        in String.iter f s;
-        contents buf
 
         let show i attribs tree =
             let open Attributes in
@@ -464,7 +563,9 @@ module EnglishPrinter = struct
         | "deriv" -> CCList.iteri2 (g show_derivation) attribs res
         | "ptb"   -> List.iteri (f (show_ptb 0)) res
         | "html"  -> pr (Xml.to_string_fmt (show_html_trees res))
-        | "htmls" -> show_html_trees_separated names res
+        | "htmls" -> show_html_trees_separated
+                    (fun ts -> (Xml.to_string_fmt @@ show_html_trees [ts], "html")) names res
+        | "svg"   -> show_html_trees_separated (fun ts -> Svg.run_graphviz ts) names res
         | "xml"  -> pr (show_xml_trees attribs res)
         | "prolog" -> show_prolog attribs res
         | _ -> invalid_arg (!%"Not accepted output format: %s\n" fmt)
