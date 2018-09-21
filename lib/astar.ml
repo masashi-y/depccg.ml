@@ -2,10 +2,6 @@
 open Utils
 open Grammar
 open Printer
-module L = List
-module LL = ListLabels
-module M = Matrix
-module H = Hashtbl
 
 
 module Agenda (P : Psq.Ordered) =
@@ -20,7 +16,7 @@ struct
         if n <= 0 then init else
         match pop q with
         | None -> init
-        | Some ((k, v), q') -> fold_at_most (n-1) f (f k v init) q'
+        | Some ((_, v), q') -> fold_at_most (n-1) f (f v init) q'
 end
 
 
@@ -41,51 +37,85 @@ struct
     open Grammar
     module Cell = struct
         type t = {
-           id: int;
            in_score: float;
            out_score: float;
            score: float;
            start: int;
            length: int;
            final: bool;
+           cat: Cat.t;
            tree: Tree.t
         }
 
+        let make tree
+                ~final
+                ~in_score
+                ~out_score
+                ~start
+                ~length = {
+            in_score;
+            out_score;
+            score = in_score +. out_score;
+            start;
+            length;
+            final;
+            cat = Tree.(tree.cat);
+            tree
+        }
+
+        let to_scored {score; tree} = (score, tree)
+
         (* Give higher priority to ones with higher scores *)
-        let compare { id = i1 ;score = s1 } { id = i2 ;score = s2 } =
-            let c = compare s2 s1 in
-            if c = 0 then compare i1 i2 else c
+        let compare {score = s1} {score = s2} = compare s2 s1
     end
-    module Q = Agenda (Cell)
+    module Queue = Agenda (Cell)
 
     module Log = struct
         module Printer = ParsePrinter (Grammar)
-        let do_log = false
+        open Cell
+
         let blue = format_of_string "\027[34m%s\027[93m"
         let red  = format_of_string "\027[31m%s\027[93m"
 
-        let bar () = prerr_endline ("\027[34m" ^ (String.make 10 '#') ^ "\027[93m\n")
+        let logging f =
+            if false then f ()
 
-        let pop Cell.{score; in_score; out_score; id; tree} =
-            if do_log then (Printf.eprintf (blue ^^ "\nID: %i\n%s\ns: %e\nh: %e\ns+h: %e\n")
-                "POPPED" id (Printer.show_derivation (Attributes.default ()) tree) in_score out_score score; bar ())
+        let bar () =
+            prerr_endline ("\027[34m" ^ (String.make 10 '#') ^ "\027[93m\n")
+
+        let pop {score; in_score; out_score; tree} =
+            logging (fun () ->
+                Printf.eprintf (blue ^^ "\n%s\ns: %e\nh: %e\ns+h: %e\n")
+                    "POPPED"
+                    (Printer.show_derivation (Attributes.default ()) tree)
+                    in_score out_score score;
+                bar ())
 
         let onebest = function
             | None -> ()
-            | Some (_, Cell.{tree=Tree.{cat; str}}) -> if do_log then
-                Printf.eprintf "%s\t-->\t%s\n" str (Cat.show cat)
+            | Some (_, {tree=Tree.{cat; str}}) ->
+                logging (fun () ->
+                    Printf.eprintf "%s\t-->\t%s\n" str (Cat.show cat))
 
-        let log msg Cell.{tree} = if do_log then
-            (Printf.eprintf (red ^^ "\n%s\n") msg (Printer.show_derivation (Attributes.default ()) tree); bar())
+        let log msg {tree} =
+            logging (fun () ->
+                Printf.eprintf
+                    (red ^^ "\n%s\n")
+                    msg
+                    (Printer.show_derivation (Attributes.default ()) tree);
+                bar())
 
-        let (unary, cand, binary) = (log "UNARY", log "CAND", log "BINARY")
+        let unary = log "UNARY"
+        let cand = log "CAND"
+        let binary = log "BINARY"
 
-        let show_derivation tree = Printer.show_derivation (Attributes.default ()) tree
+        let show_derivation tree =
+            Printer.show_derivation (Attributes.default ()) tree
     end
 
-    let fail = Tree.terminal Cat.np "FAILED"
+    let fail = [nan, Tree.terminal Cat.np "FAILED"]
 
-    let rule_cache = ref @@ H.create 1000
+    let rule_cache = ref (Hashtbl.create 1000)
 
     let overlap (start1, length1) (start2, length2) =
         let end1 = start1 + length1 - 1 in
@@ -102,7 +132,7 @@ struct
                         overlap (start, length) (start0, length0)
                             || (start, length) = (start0, length0)
                                && cat <> cat0
-                               && not @@ H.mem unary_rules cat0 in
+                               && not @@ Hashtbl.mem unary_rules cat0 in
                     (terminals, constraint_ :: nonterminals)
             | Partial.N (None, start, length) ->
                     let constraint_ (_, start0, length0) =
@@ -113,16 +143,17 @@ struct
                     ((start, category) :: terminals, nonterminals)
         in
         let terminals, nonterminals = List.fold_left aux ([], []) constraints in
+        let index =
+            let i = ref 0 in
+            fun () -> incr i;
+            !i in
         let enqueue_fun = match nonterminals with
-            | [] -> Q.add
+            | [] -> Queue.add (index ())
             | constraints ->
-                fun id (Cell.{start; length; tree=Tree.{cat}} as elt) queue ->
+                fun (Cell.{start; length; cat} as cell) queue ->
                     if List.exists (fun constraint_ -> constraint_ (cat, start, length)) constraints
-                    then begin
-                        (* print_endline (Log.show_derivation elt.Cell.tree); *)
-                        queue
-                    end
-                    else Q.add id elt queue
+                    then queue
+                    else Queue.add (index ()) cell queue
         in
         enqueue_fun, terminals
 
@@ -133,11 +164,138 @@ struct
     let build_cat_dict = function
         | Some d ->
             fun w i -> begin
-                try (H.find d w).(i)
+                try (Hashtbl.find d w).(i)
                 with Not_found -> true
             end
         | None ->
             fun _ _ -> true
+
+    let setup_per_word_queues
+            ~enqueue
+            ~best_dep_scores
+            ~best_cat_scores
+            ~terminal_constraints
+            ~cat_dict
+            ~cat_list
+            ~cat_scores
+            ~dep_scores
+            sentence =
+        let f word_i lst word =
+            best_dep_scores.(word_i) <- Matrix.max_along_row dep_scores word_i;
+            let queue =
+                match List.assoc_opt word_i terminal_constraints with
+                | Some cat -> begin
+                    let in_score = 0.0 in
+                    best_cat_scores.(word_i) <- in_score;
+                    let tree = Tree.terminal cat word in
+                    let cell = Cell.make tree ~final:false ~in_score ~out_score:0.0 ~start:word_i ~length:1 in
+                    Queue.sg 0 cell
+                end
+                | None -> begin
+                    let seen_cats_for_w = cat_dict word in
+                    ListLabels.fold_left cat_list
+                        ~init:Queue.empty
+                        ~f:(fun queue (cat_i, cat) ->
+                        if not (seen_cats_for_w cat_i) then queue
+                        else begin
+                            let in_score = Matrix.get cat_scores (word_i, cat_i) in
+                            if in_score > best_cat_scores.(word_i) then
+                                best_cat_scores.(word_i) <- in_score;
+                            let tree = Tree.terminal cat word in
+                            let cell = Cell.make tree ~final:false ~in_score ~out_score:0.0 ~start:word_i ~length:1 in
+                            enqueue cell queue
+                        end)
+                end in
+            queue :: lst in
+        Utils.fold_lefti sentence ~init:[] ~f
+
+    let initialize_queue
+             ~enqueue
+             ~prune_size
+             ~beta
+             ~cat_out_scores
+             ~dep_out_scores
+             ~best_cat_scores
+             ~best_dep_scores =
+        let dep_out_score_leaf = Array.fold_left (+.) 0.0 best_dep_scores in
+        let aux queue word_queue =
+            Log.onebest (Queue.min word_queue);
+            Queue.fold_at_most prune_size
+                (fun (Cell.{score; start} as cell) queue ->
+                    let threshold = (exp best_cat_scores.(start)) *. beta in
+                    if exp score < threshold then queue
+                    else
+                    let out_score = Matrix.get cat_out_scores (start, start + 1)
+                                  +. dep_out_score_leaf in
+                    let score = score +. out_score in
+                    enqueue Cell.{cell with score = score; out_score = out_score} queue)
+                queue word_queue in
+        List.fold_left aux Queue.empty
+
+    let apply_unary_rules
+            ~enqueue
+            ~n_words
+            ~unary_penalty
+            ~unary_rules
+            Cell.{in_score; out_score; start; length; tree={Tree.cat=c; op} as tree} queue =
+        if length = n_words then queue
+        else 
+            let aux cat queue =
+            if not @@ is_acceptable_unary cat op then queue
+            else begin
+                let tree = Tree.make ~cat ~op:Rules.unary ~children:[tree] in
+                let in_score = in_score -. unary_penalty in
+                let cell = Cell.make tree ~final:false ~in_score ~out_score ~start ~length in 
+                Log.unary cell;
+                enqueue cell queue
+            end in
+        List.fold_right aux (Hashtbl.find_all unary_rules c) queue
+
+    let apply_binary_rules
+            ~enqueue
+            ~is_seen
+            ~cat_scores
+            ~dep_scores
+            ~cat_out_scores
+            ~dep_out_scores
+            ~best_cat_scores
+            ~best_dep_scores
+            Cell.{in_score=s1; start=st1; length=l1; tree=t1; cat=c1}
+            Cell.{in_score=s2; start=st2; length=l2; tree=t2; cat=c2}
+            queue =
+        if not (is_seen (c1, c2)) then queue
+        else begin
+            let aux (op, cat) queue =
+                let length = l1 + l2 in
+                let head, dep = resolve_dependency (st1, st2) (l1, l2) in
+                let in_score = s1 +. s2 +. Matrix.get dep_scores (dep, head + 1) in
+                let out_score = Matrix.get cat_out_scores (st1, st1 + length)
+                             +. Matrix.get dep_out_scores (st1, st1 + length)
+                             -. best_dep_scores.(head) in
+                let tree = Tree.make ~cat ~op ~children:[t1; t2] in
+                let cell = Cell.make tree ~final:false ~in_score ~out_score ~start:st1 ~length
+                in
+                Log.binary cell;
+                enqueue cell queue in
+            List.fold_right aux (apply_rules_with_cache !rule_cache (c1, c2)) queue
+        end
+
+    let check_root_cell
+            ~enqueue
+            ~n_words
+            ~possible_root_cats
+            ~dep_scores
+            ~cat_scores
+            Cell.{in_score; start; length; tree; cat}
+            queue =
+        if not (length = n_words && List.mem cat possible_root_cats) then queue
+        else begin
+            let dep_score = Matrix.get dep_scores (start, 0) in
+            let in_score = in_score +. dep_score in
+            let out_score = 0.0 in
+            let cell = Cell.make tree ~final:true ~in_score ~out_score ~start ~length in
+            enqueue cell queue
+        end
 
     let parse (sentence, cat_scores, dep_scores, constraints)
             ~cat_list
@@ -148,141 +306,78 @@ struct
             ?(prune_size=50)
             ?(unary_penalty=0.1)
             ?(beta=0.000001) () =
-        let n_words = L.length sentence in
-        let index = let i = ref 0 in fun () -> incr i; !i in
-        let new_cell ?(final=false) tree ~in_score ~out_score ~start ~length = 
-            let id = index () in
-            let score = in_score +. out_score in
-            let elt = Cell.{id; in_score; out_score;
-                        score; start; length; final; tree} in
-            (id, elt)
-        in
+        let n_words = List.length sentence in
         let is_seen = build_seen_rules seen_rules in
         let cat_dict = build_cat_dict cat_dict in
+
         let enqueue, terminal_constraints =
             build_constraints ~unary_rules constraints in
+
         let best_dep_scores = Array.make n_words neg_infinity in
         let best_cat_scores = Array.make n_words neg_infinity in
-        let init_queues = Utils.fold_lefti sentence ~init:[]
-        ~f:(fun w_i lst w ->
-            best_dep_scores.(w_i) <- M.max_along_row dep_scores w_i;
-            let seen_cats_for_w = cat_dict w in
-            let queue = match List.assoc_opt w_i terminal_constraints with
-            | Some cat -> begin
-                let in_score = 0.0 in
-                best_cat_scores.(w_i) <- in_score;
-                let tree = Tree.terminal cat w in
-                let (id, elt) = new_cell tree ~in_score ~out_score:0.0
-                              ~start:w_i ~length:1 in
-                Q.sg id elt
-            end
-            | None -> begin
-                LL.fold_left cat_list ~init:Q.empty
-                ~f:(fun q (c_i, cat) ->
-                    if seen_cats_for_w c_i then begin
-                        let in_score = M.get cat_scores (w_i, c_i) in
-                        if in_score > best_cat_scores.(w_i) then
-                            best_cat_scores.(w_i) <- in_score;
-                        let tree = Tree.terminal cat w in
-                        let (id, elt) = new_cell tree ~in_score ~out_score:0.0
-                                      ~start:w_i ~length:1
-                        in enqueue id elt q
-                    end else q)
-            end in
-            queue :: lst) in
+
+        let init_queues = setup_per_word_queues
+                ~enqueue ~best_dep_scores
+                ~best_cat_scores ~terminal_constraints
+                ~cat_dict ~cat_list ~cat_scores ~dep_scores sentence in
+
+        (* compute the estimates of outside probabilities *)
         let cat_out_scores = compute_outside_scores best_cat_scores n_words in
         let dep_out_scores = compute_outside_scores best_dep_scores n_words in
-        let dep_out_score_leaf = Array.fold_left (+.) 0.0 best_dep_scores in
 
         (* main queue *)
-        let queue = LL.fold_left init_queues ~init:Q.empty
-            ~f:(fun q w_q ->
-                Log.onebest (Q.min w_q);
-                Q.fold_at_most prune_size
-                    (fun k (Cell.{score=s; start=w_i} as p) q ->
-                    let threshold = (exp best_cat_scores.(w_i)) *. beta in
-                    if exp s < threshold then q
-                    else
-                    let out_score = M.get cat_out_scores (w_i, w_i + 1)
-                                 +. dep_out_score_leaf in
-                    let score = s +. out_score in
-                    enqueue k {p with Cell.score=score; out_score=out_score} q)
-                q w_q)
-        in
+        let queue = initialize_queue
+                ~enqueue ~prune_size ~beta ~cat_out_scores ~dep_out_scores
+                ~best_cat_scores ~best_dep_scores init_queues in
+
         (* apply unary rules to a subtree & insert them into the chart *)
-        let apply_unaries p q = match p with
-            | Cell.{length} when length = n_words -> q
-            | Cell.{in_score=s; out_score; start; length; tree={Tree.cat=c; op} as t} ->
-                LL.fold_right (H.find_all unary_rules c)
-                    ~init:q ~f:(fun cat q ->
-                        if is_acceptable_unary cat op then
-                        (let tree = Tree.make ~cat ~op:Rules.unary ~children:[t] in
-                         let (id, elt) = new_cell tree
-                            ~in_score:(s -. unary_penalty)
-                            ~out_score ~start ~length
-                        in 
-                        Log.unary elt;
-                        enqueue id elt q) else q)
-        in
+        let apply_unary_rules = apply_unary_rules
+                ~enqueue ~n_words ~unary_penalty ~unary_rules in
+
         (* apply binary rules to subtrees & insert them into the chart *)
-        let apply_binaries ps q = match ps with
-            | Cell.{in_score=s1; start=st1; length=l1; tree=Tree.{cat=c1} as t1},
-              Cell.{in_score=s2; start=st2; length=l2; tree=Tree.{cat=c2} as t2}
-              when is_seen (c1, c2) ->
-                      Log.cand (fst ps);
-                      LL.fold_right (apply_rules_with_cache !rule_cache (c1, c2))
-                      ~init:q ~f:(fun (op, cat) q ->
-                          let length = l1 + l2 in
-                          let (head, dep) = resolve_dependency (st1, st2) (l1, l2) in
-                          let in_score = s1 +. s2 +. M.get dep_scores (dep, head + 1)
-                          and out_score = M.get cat_out_scores (st1, st1 + length)
-                                       +. M.get dep_out_scores (st1, st1 + length)
-                                       -. best_dep_scores.(head) in
-                          let tree = Tree.make ~cat ~op ~children:[t1; t2] in
-                          let (id, elt) = new_cell tree ~in_score ~out_score ~start:st1 ~length
-                          in
-                          Log.binary elt;
-                          enqueue id elt q)
-            | _ -> q
-        in
+        let apply_binary_rules = apply_binary_rules
+                ~enqueue ~is_seen ~cat_scores ~dep_scores ~cat_out_scores
+                ~dep_out_scores ~best_cat_scores ~best_dep_scores in
+
+        let check_root_cell = check_root_cell
+                ~enqueue ~n_words ~possible_root_cats
+                ~dep_scores ~cat_scores in
 
         (* main chart *)
-        let chart = Chart.make n_words nbest
-        and goal = Chart.make 1 nbest
-        in
-        let check_root_cell p q = match p with
-        | Cell.{in_score=score; start; length; tree=Tree.{cat} as tree}
-            when length = n_words && L.mem cat possible_root_cats ->
-                let dep_score = M.get dep_scores (start, 0) in
-                let in_score = score +. dep_score in
-                let (id, elt) = new_cell tree ~in_score ~out_score:0.0 ~start
-                                       ~length ~final:true in
-                enqueue id elt q
-        | _ -> q
-        in
+        let chart = Chart.make n_words nbest in
+        let goal = Chart.make 1 nbest in
+
+        let finalize () =
+            Chart.complete_parses goal
+            |> List.sort Cell.compare
+            |> List.map Cell.to_scored in
+
         (* main A* loop *)
-        let rec astar q =
-        if Chart.n_complete_parses goal >= nbest then `OK
-        else match Q.pop q with
-        | None when Chart.n_complete_parses goal > 0 -> `OK
-        | None -> `Fail
-        | Some ((_, (Cell.{start=s; length=l; tree=Tree.{cat}} as p)), q')
-               -> Log.pop p;
-                  if p.Cell.final then let _ = Chart.update goal (0, 0) cat p in astar q'
-                  else
-                  let cell = (s, l - 1) in
-                  if not @@ Chart.update chart cell cat p then astar q' else
-                    (q' |> check_root_cell p |> apply_unaries p
-                    |> Chart.fold_along_row chart (s + l)
-                        (fun _ p' q -> apply_binaries (p, p') q)
-                    |> Chart.fold_along_diag chart (s - 1)
-                        (fun _ p' q -> apply_binaries (p', p) q)
-                    |> astar)
-        in
-        match astar queue with
-        | `OK   -> let parses = L.sort Cell.compare @@ Chart.complete_parses goal
-                   in L.map (fun Cell.{score; tree} -> (score, tree)) parses
-        | `Fail -> [(nan, fail)]
+        let rec astar queue =
+            let completed = Chart.n_complete_parses goal in
+            if completed >= nbest then finalize ()
+            else match Queue.pop queue with
+            | None when completed > 0 -> finalize ()
+            | None -> fail
+            | Some ((_, cell), queue) ->
+                let Cell.{final; start; length; cat} = cell in
+                Log.pop cell;
+                if final then
+                    let _ = Chart.update goal (0, 0) cat cell in
+                    astar queue
+                else begin
+                    if not (Chart.update chart (start, length - 1) cat cell)
+                    then astar queue
+                    else (queue
+                        |> check_root_cell cell
+                        |> apply_unary_rules cell
+                        |> Chart.fold_along_row chart (start + length)
+                            (fun _ other queue -> apply_binary_rules cell other queue)
+                        |> Chart.fold_along_diag chart (start - 1)
+                            (fun _ other queue -> apply_binary_rules other cell queue)
+                        |> astar)
+                end in
+        astar queue
 
 end
 
