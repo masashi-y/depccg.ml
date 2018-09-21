@@ -4,22 +4,6 @@ open Grammar
 open Printer
 
 
-module Agenda (P : Psq.Ordered) =
-struct
-    module K = struct
-        type t = int
-        let compare (a:int) b = compare a b
-    end
-    include Psq.Make (K) (P)
-
-    let rec fold_at_most n f init q =
-        if n <= 0 then init else
-        match pop q with
-        | None -> init
-        | Some ((_, v), q') -> fold_at_most (n-1) f (f v init) q'
-end
-
-
 let compute_outside_scores scores length =
     let from_left = Array.make (length + 1) 0.0
     and from_right = Array.make (length + 1) 0.0 in
@@ -48,7 +32,7 @@ struct
         }
 
         let make tree
-                ~final
+                ?(final=false)
                 ~in_score
                 ~out_score
                 ~start
@@ -68,7 +52,7 @@ struct
         (* Give higher priority to ones with higher scores *)
         let compare {score = s1} {score = s2} = compare s2 s1
     end
-    module Queue = Agenda (Cell)
+    module Queue = Agenda.Make (Cell)
 
     module Log = struct
         module Printer = ParsePrinter (Grammar)
@@ -93,7 +77,7 @@ struct
 
         let onebest = function
             | None -> ()
-            | Some (_, {tree=Tree.{cat; str}}) ->
+            | Some {tree=Tree.{cat; str}} ->
                 logging (fun () ->
                     Printf.eprintf "%s\t-->\t%s\n" str (Cat.show cat))
 
@@ -124,7 +108,6 @@ struct
             || (start2 < start1 && start1 <= end2 && start1 <= end2 && end2 < end1)
 
     let build_constraints ~unary_rules constraints =
-        print_endline (Partial.show constraints);
         let aux (terminals, nonterminals) = function
             | Partial.N (Some category, start, length) ->
                     let cat = Cat.parse category in
@@ -143,17 +126,13 @@ struct
                     ((start, category) :: terminals, nonterminals)
         in
         let terminals, nonterminals = List.fold_left aux ([], []) constraints in
-        let index =
-            let i = ref 0 in
-            fun () -> incr i;
-            !i in
         let enqueue_fun = match nonterminals with
-            | [] -> Queue.add (index ())
+            | [] -> Queue.add
             | constraints ->
                 fun (Cell.{start; length; cat} as cell) queue ->
                     if List.exists (fun constraint_ -> constraint_ (cat, start, length)) constraints
                     then queue
-                    else Queue.add (index ()) cell queue
+                    else Queue.add cell queue
         in
         enqueue_fun, terminals
 
@@ -188,13 +167,13 @@ struct
                     let in_score = 0.0 in
                     best_cat_scores.(word_i) <- in_score;
                     let tree = Tree.terminal cat word in
-                    let cell = Cell.make tree ~final:false ~in_score ~out_score:0.0 ~start:word_i ~length:1 in
-                    Queue.sg 0 cell
+                    let cell = Cell.make tree ~in_score ~out_score:0.0 ~start:word_i ~length:1 in
+                    Queue.singleton cell
                 end
                 | None -> begin
                     let seen_cats_for_w = cat_dict word in
                     ListLabels.fold_left cat_list
-                        ~init:Queue.empty
+                        ~init:(Queue.empty ())
                         ~f:(fun queue (cat_i, cat) ->
                         if not (seen_cats_for_w cat_i) then queue
                         else begin
@@ -202,7 +181,7 @@ struct
                             if in_score > best_cat_scores.(word_i) then
                                 best_cat_scores.(word_i) <- in_score;
                             let tree = Tree.terminal cat word in
-                            let cell = Cell.make tree ~final:false ~in_score ~out_score:0.0 ~start:word_i ~length:1 in
+                            let cell = Cell.make tree ~in_score ~out_score:0.0 ~start:word_i ~length:1 in
                             enqueue cell queue
                         end)
                 end in
@@ -222,7 +201,7 @@ struct
             Log.onebest (Queue.min word_queue);
             Queue.fold_at_most prune_size
                 (fun (Cell.{score; start} as cell) queue ->
-                    let threshold = (exp best_cat_scores.(start)) *. beta in
+                    let threshold = exp best_cat_scores.(start) *. beta in
                     if exp score < threshold then queue
                     else
                     let out_score = Matrix.get cat_out_scores (start, start + 1)
@@ -230,7 +209,7 @@ struct
                     let score = score +. out_score in
                     enqueue Cell.{cell with score = score; out_score = out_score} queue)
                 queue word_queue in
-        List.fold_left aux Queue.empty
+        List.fold_left aux (Queue.empty ())
 
     let apply_unary_rules
             ~enqueue
@@ -241,11 +220,11 @@ struct
         if length = n_words then queue
         else 
             let aux cat queue =
-            if not @@ is_acceptable_unary cat op then queue
+            if not (is_acceptable_unary cat op) then queue
             else begin
                 let tree = Tree.make ~cat ~op:Rules.unary ~children:[tree] in
                 let in_score = in_score -. unary_penalty in
-                let cell = Cell.make tree ~final:false ~in_score ~out_score ~start ~length in 
+                let cell = Cell.make tree ~in_score ~out_score ~start ~length in 
                 Log.unary cell;
                 enqueue cell queue
             end in
@@ -273,7 +252,7 @@ struct
                              +. Matrix.get dep_out_scores (st1, st1 + length)
                              -. best_dep_scores.(head) in
                 let tree = Tree.make ~cat ~op ~children:[t1; t2] in
-                let cell = Cell.make tree ~final:false ~in_score ~out_score ~start:st1 ~length
+                let cell = Cell.make tree ~in_score ~out_score ~start:st1 ~length
                 in
                 Log.binary cell;
                 enqueue cell queue in
@@ -317,8 +296,7 @@ struct
         let best_cat_scores = Array.make n_words neg_infinity in
 
         let init_queues = setup_per_word_queues
-                ~enqueue ~best_dep_scores
-                ~best_cat_scores ~terminal_constraints
+                ~enqueue ~best_dep_scores ~best_cat_scores ~terminal_constraints
                 ~cat_dict ~cat_list ~cat_scores ~dep_scores sentence in
 
         (* compute the estimates of outside probabilities *)
@@ -347,21 +325,22 @@ struct
         let chart = Chart.make n_words nbest in
         let goal = Chart.make 1 nbest in
 
-        let finalize () =
-            Chart.complete_parses goal
-            |> List.sort Cell.compare
-            |> List.map Cell.to_scored in
-
         (* main A* loop *)
         let rec astar queue =
             let completed = Chart.n_complete_parses goal in
-            if completed >= nbest then finalize ()
-            else match Queue.pop queue with
-            | None when completed > 0 -> finalize ()
+            if completed >= nbest || Queue.is_empty queue && completed > 0
+            then begin
+                Chart.complete_parses goal
+                |> List.sort Cell.compare |> List.map Cell.to_scored
+            end
+            else search queue
+
+        and search queue =
+            match Queue.pop queue with
             | None -> fail
-            | Some ((_, cell), queue) ->
-                let Cell.{final; start; length; cat} = cell in
+            | Some (cell, queue) ->
                 Log.pop cell;
+                let Cell.{final; start; length; cat} = cell in
                 if final then
                     let _ = Chart.update goal (0, 0) cat cell in
                     astar queue
@@ -378,7 +357,6 @@ struct
                         |> astar)
                 end in
         astar queue
-
 end
 
 module EnAstarParser = MakeAStarParser (EnglishGrammar)
