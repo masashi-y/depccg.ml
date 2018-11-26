@@ -167,7 +167,7 @@ struct
                     let in_score = 0.0 in
                     best_cat_scores.(word_i) <- in_score;
                     let tree = Tree.terminal cat word in
-                    let cell = Cell.make tree ~in_score ~out_score:0.0 ~start:word_i ~length:1 in
+                    let cell = Cell.make tree ~final:false ~in_score ~out_score:0.0 ~start:word_i ~length:1 in
                     Queue.singleton cell
                 end
                 | None -> begin
@@ -181,7 +181,7 @@ struct
                             if in_score > best_cat_scores.(word_i) then
                                 best_cat_scores.(word_i) <- in_score;
                             let tree = Tree.terminal cat word in
-                            let cell = Cell.make tree ~in_score ~out_score:0.0 ~start:word_i ~length:1 in
+                            let cell = Cell.make tree ~final:false ~in_score ~out_score:0.0 ~start:word_i ~length:1 in
                             enqueue cell queue
                         end)
                 end in
@@ -224,7 +224,7 @@ struct
             else begin
                 let tree = Tree.make ~cat ~op:Rules.unary ~children:[tree] in
                 let in_score = in_score -. unary_penalty in
-                let cell = Cell.make tree ~in_score ~out_score ~start ~length in 
+                let cell = Cell.make tree ~final:false ~in_score ~out_score ~start ~length in 
                 Log.unary cell;
                 enqueue cell queue
             end in
@@ -252,7 +252,7 @@ struct
                              +. Matrix.get dep_out_scores (st1, st1 + length)
                              -. best_dep_scores.(head) in
                 let tree = Tree.make ~cat ~op ~children:[t1; t2] in
-                let cell = Cell.make tree ~in_score ~out_score ~start:st1 ~length
+                let cell = Cell.make tree ~final:false ~in_score ~out_score ~start:st1 ~length
                 in
                 Log.binary cell;
                 enqueue cell queue in

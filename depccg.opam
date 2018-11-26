@@ -30,6 +30,7 @@ depends: [
   "ppx_sexp_conv"
   "sexplib"
   "xml-light"
+  "yaml"
 ]
 
 available: [ ocaml-version >= "4.03.0" & opam-version >= "1.2" ]
