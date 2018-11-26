@@ -53,6 +53,12 @@ type cfg = {
     ncores : int;          [@short "-c"]
         (** the number of cores to parallelize A* decoders *)
 
+    disable_seen_rules : bool;
+        (** use predefined set of rules *)
+
+    disable_cat_dict : bool;
+        (** use predefined set of observed supertags per word *)
+
     verbose : bool;        [@short "-v"]
         (** show all messages *)
 } [@@deriving argparse]
@@ -67,6 +73,8 @@ let default = {
     input_format = Raw;
     socket = None;
     ncores = 4;
+    disable_seen_rules = false;
+    disable_cat_dict = false;
     verbose = false;
 }
 
@@ -96,8 +104,8 @@ let tag ~lib ~model ~warn ~annotator sents =
 
 
 let () =
-    let {input; model; annotator; socket; nbest;
-        beta; format; input_format; ncores; verbose}, _ = argparse_cfg default "depccg_en" Sys.argv in
+    let {input; model; annotator; socket; nbest; beta; format; input_format;
+         ncores; disable_seen_rules; disable_cat_dict; verbose}, _ = argparse_cfg default "depccg_en" Sys.argv in
     let {ParserConfig.model = def_model; lib} = ParserConfig.load_en () in
     let model = CCOpt.get_or ~default:def_model model in
     let warn = verbose in
@@ -108,9 +116,13 @@ let () =
     and n_cats = (List.length ss.categories)
     and unary_rules = EnLoader.read_unary_rules (model </> "unary_rules.txt") in
     let seen_rules, seen_rules_size = 
-        try_load "seen rules" (fun () -> EnLoader.read_binary_rules (model </> "seen_rules.txt")) in
+        if not disable_seen_rules then
+            try_load "seen rules" (fun () -> EnLoader.read_binary_rules (model </> "seen_rules.txt"))
+        else None, 0 in
     let cat_dict, cat_dict_size =
-        try_load "cat dict" (fun () -> EnLoader.read_cat_dict ss.categories (model </> "cat_dict.txt")) in
+        if not disable_cat_dict then
+            try_load "cat dict" (fun () -> EnLoader.read_cat_dict ss.categories (model </> "cat_dict.txt"))
+        else None, 0 in
     Printf.eprintf status (List.length ss.seeds)
             n_cats (Hashtbl.length unary_rules)
             seen_rules_size cat_dict_size nbest beta format ncores;
@@ -119,8 +131,7 @@ let () =
     let names = List.map (fun s -> s.id) ss.seeds in
     let res = progress_map ncores ss.seeds
             ~f:(fun s -> EnAstarParser.parse (EnLoader.read_proto_matrix n_cats s)
-            ~cat_list ~unary_rules ~seen_rules ~cat_dict
-            ~nbest ~beta ~unary_penalty:0.1 ()) in
+            ~cat_list ~unary_rules ~seen_rules ~cat_dict ~nbest ~beta ~unary_penalty:0.1 ()) in
     Printf.eprintf "\nExecution time: %fs\n" (Sys.time() -. t);
     EnPrinter.output_results format names attribs res
 
