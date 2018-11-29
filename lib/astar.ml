@@ -114,7 +114,7 @@ struct
                     let constraint_ (cat0, start0, length0) =
                         overlap (start, length) (start0, length0)
                             || (start, length) = (start0, length0)
-                               && cat <> cat0
+                               && not Cat.(cat =:= cat0)
                                && not @@ Hashtbl.mem unary_rules cat0 in
                     (terminals, constraint_ :: nonterminals)
             | Partial.N (None, start, length) ->
