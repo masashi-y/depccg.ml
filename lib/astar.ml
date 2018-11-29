@@ -161,30 +161,24 @@ struct
             sentence =
         let f word_i lst word =
             best_dep_scores.(word_i) <- Matrix.max_along_row dep_scores word_i;
-            let queue =
+            let meet_constraint =
                 match List.assoc_opt word_i terminal_constraints with
-                | Some cat -> begin
-                    let in_score = 0.0 in
-                    best_cat_scores.(word_i) <- in_score;
-                    let tree = Tree.terminal cat word in
-                    let cell = Cell.make tree ~final:false ~in_score ~out_score:0.0 ~start:word_i ~length:1 in
-                    Queue.singleton cell
-                end
-                | None -> begin
-                    let seen_cats_for_w = cat_dict word in
-                    ListLabels.fold_left cat_list
-                        ~init:(Queue.empty ())
-                        ~f:(fun queue (cat_i, cat) ->
-                        if not (seen_cats_for_w cat_i) then queue
-                        else begin
-                            let in_score = Matrix.get cat_scores (word_i, cat_i) in
-                            if in_score > best_cat_scores.(word_i) then
-                                best_cat_scores.(word_i) <- in_score;
-                            let tree = Tree.terminal cat word in
-                            let cell = Cell.make tree ~final:false ~in_score ~out_score:0.0 ~start:word_i ~length:1 in
-                            enqueue cell queue
-                        end)
-                end in
+                | Some cat0 -> fun cat -> Cat.(cat0 =:= cat)
+                | None -> fun _ -> true in
+            let seen_cats_for_w = cat_dict word in
+            let queue =
+                ListLabels.fold_left cat_list
+                    ~init:(Queue.empty ())
+                    ~f:(fun queue (cat_i, cat) ->
+                    if not (seen_cats_for_w cat_i || meet_constraint cat) then queue
+                    else begin
+                        let in_score = Matrix.get cat_scores (word_i, cat_i) in
+                        if in_score > best_cat_scores.(word_i) then
+                            best_cat_scores.(word_i) <- in_score;
+                        let tree = Tree.terminal cat word in
+                        let cell = Cell.make tree ~final:false ~in_score ~out_score:0.0 ~start:word_i ~length:1 in
+                        enqueue cell queue
+                    end) in
             queue :: lst in
         Utils.fold_lefti sentence ~init:[] ~f
 
