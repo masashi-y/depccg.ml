@@ -11,7 +11,7 @@ install: lib depccgrc
 	install -m 644 models/tri_headfirst/* $(SHAREDIR)/tri_headfirst
 	install -m 644 models/ja_headfinal/* $(SHAREDIR)/ja_headfinal
 	install -m 644 depccgrc $(HOME)/.depccgrc
-	install -m 644 lemmatizer/* $(SHAREDIR)/lemmatizer
+	install -m 644 lemmatizer/stemmer.jar $(SHAREDIR)/lemmatizer/stemmer.jar
 
 
 ${MODELDIR}:
