@@ -7,9 +7,11 @@ install: lib depccgrc
 	install -d $(SHAREDIR)
 	install -d $(SHAREDIR)/tri_headfirst
 	install -d $(SHAREDIR)/ja_headfinal
+	install -d $(SHAREDIR)/lemmatizer
 	install -m 644 models/tri_headfirst/* $(SHAREDIR)/tri_headfirst
 	install -m 644 models/ja_headfinal/* $(SHAREDIR)/ja_headfinal
 	install -m 644 depccgrc $(HOME)/.depccgrc
+	install -m 644 lemmatizer/* $(SHAREDIR)/lemmatizer
 
 
 ${MODELDIR}:

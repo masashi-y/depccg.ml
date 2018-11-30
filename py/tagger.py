@@ -30,12 +30,11 @@ class Annotator(object):
 
 
 candc_cmd = "echo \"{0}\" | {1}/bin/pos --model {1}/models/pos | {1}/bin/ner --model {1}/models/ner"
-morpha_cmd = "echo \"{0}\" | java -jar lemmatizer/stemmer.jar"
+morpha_cmd = "echo \"{0}\" | java -jar {1}/lemmatizer/stemmer.jar"
 
 class CAndCAnnotator(Annotator):
-    def __init__(self):
-        import spacy
-        self.nlp = spacy.load("en")
+    def __init__(self, share_dir):
+        self.share_dir = share_dir
         try:
             self.candc_dir = os.environ["CANDC"]
         except:
@@ -54,10 +53,9 @@ class CAndCAnnotator(Annotator):
         res = res.decode('utf-8')
         _, self.tags, self.entities = \
             zip(*[t.split('|') for t in res.strip().split(" ")])
-        preds = self.nlp(sentence)
 
         # use morpha stemmer
-        command = morpha_cmd.format(sentence)
+        command = morpha_cmd.format(sentence, self.share_dir)
         proc = subprocess.Popen(command,
                         shell  = True,
                         stdin  = subprocess.PIPE,
@@ -70,7 +68,8 @@ class CAndCAnnotator(Annotator):
 
 
 class SpacyAnnotator(Annotator):
-    def __init__(self):
+    def __init__(self, share_dir):
+        self.share_dir = share_dir
         import spacy
         self.nlp = spacy.load("en")
 
@@ -144,20 +143,11 @@ def load_tagger(filepath):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser("LSTM supertag tagger")
-    parser.add_argument("path",
-            type=Path,
-            help="path to model directory")
-    parser.add_argument("--out",
-            type=Path, default="ccg.seed",
-            help="output file path")
-    parser.add_argument("--batchsize",
-            type=int,
-            default=16,
-            help="batch size")
-    parser.add_argument("--annotator",
-            default=None,
-            choices=['spacy', 'candc'],
-            help="add pos, lemma and entity layers")
+    parser.add_argument("path", type=Path, help="path to model directory")
+    parser.add_argument("--out", type=Path, default="ccg.seed", help="output file path")
+    parser.add_argument("--batchsize", type=int, default=16, help="batch size")
+    parser.add_argument("--share", type=Path, help="share directory")
+    parser.add_argument("--annotator", default=None, choices=['spacy', 'candc'], help="add pos, lemma and entity layers")
 
     args = parser.parse_args()
 
@@ -171,7 +161,7 @@ if __name__ == '__main__':
 
     tagger = load_tagger(args.path)
     if args.annotator is not None:
-        annotator = annotators[args.annotator]()
+        annotator = annotators[args.annotator](args.share)
     else:
         annotator = None
 

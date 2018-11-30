@@ -94,12 +94,14 @@ let status =
 "[parser] output format:\t%s\n"                 ^^
 "[parser] the number of cores:\t%d\n%!"
 
-let tag ~lib ~model ~warn ~annotator sents =
+
+let tag ~lib ~model ~warn ~annotator ~share sents =
     let script = [lib </> "tagger.py"] in
     let warn = if warn then [] else ["-W"; "ignore"] in
+    let args = ["--share"; share; model] in
     let args = match annotator with
-        | None -> [model] 
-        | Some v -> ["--annotator"; v; model] in
+        | None -> args 
+        | Some v -> ["--annotator"; v] @ args in
     let sents = String.concat "\n" sents in
     Shexp_process.(eval Infix.(echo sents |- 
         run "env" (["PYTHONPATH=" ^ lib; "python"] @ warn @ script @ args) |- read_all))
@@ -111,10 +113,10 @@ let () =
     let {input; model; annotator; socket; nbest; beta; format; input_format;
          ncores; unary_penalty; disable_seen_rules; disable_cat_dict; verbose}, _ = 
             argparse_cfg default "depccg_en" Sys.argv in
-    let {ParserConfig.model = def_model; lib} = ParserConfig.load_en () in
+    let {ParserConfig.model = def_model; lib; share} = ParserConfig.load_en () in
     let model = CCOpt.get_or ~default:def_model model in
     let warn = verbose in
-    let tagger = tag ~lib ~model ~annotator ~warn in
+    let tagger = tag ~lib ~model ~annotator ~warn ~share in
     let loader = (module EnLoader : LOADER) in
     let ss = load_seeds ~verbose ~input_format ~tagger ~loader ~socket input in
     let cat_list = Utils.enumerate (List.map EnCat.parse ss.categories)
@@ -135,8 +137,8 @@ let () =
     let attribs = List.map Attributes.of_protobuf ss.seeds in
     let names = List.map (fun s -> s.id) ss.seeds in
     let res = progress_map ncores ss.seeds
-            ~f:(fun s -> EnAstarParser.parse (EnLoader.read_proto_matrix n_cats s)
-            ~cat_list ~unary_rules ~seen_rules ~cat_dict ~nbest ~beta ~unary_penalty ()) in
+        ~f:(fun s -> EnAstarParser.parse (EnLoader.read_proto_matrix n_cats s)
+        ~cat_list ~unary_rules ~seen_rules ~cat_dict ~nbest ~beta ~unary_penalty ()) in
     Printf.eprintf "\nExecution time: %fs\n" (Sys.time() -. t);
     EnPrinter.output_results format names attribs res
 
