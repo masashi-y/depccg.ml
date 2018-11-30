@@ -170,7 +170,7 @@ struct
                 ListLabels.fold_left cat_list
                     ~init:(Queue.empty ())
                     ~f:(fun queue (cat_i, cat) ->
-                    if not (seen_cats_for_w cat_i || meet_constraint cat) then queue
+                    if not (seen_cats_for_w cat_i && meet_constraint cat) then queue
                     else begin
                         let in_score = Matrix.get cat_scores (word_i, cat_i) in
                         if in_score > best_cat_scores.(word_i) then
