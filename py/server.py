@@ -6,6 +6,7 @@ from google.protobuf.json_format import *
 import numpy as np
 import os, sys, chainer, argparse, socket, struct
 from tagger import *
+from pathlib import Path
 import multiprocessing
 
 
@@ -69,7 +70,7 @@ def on_other_thread(socket, args):
 
 
 parser = argparse.ArgumentParser("LSTM supertag tagger")
-parser.add_argument("path", help="path to model directory")
+parser.add_argument("path", type=Path,  help="path to model directory")
 parser.add_argument("--batchsize", type=int,
         default=32, help="batch size")
 parser.add_argument("--filename", type=str,
