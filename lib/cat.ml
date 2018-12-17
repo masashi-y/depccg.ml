@@ -196,9 +196,6 @@ struct
                | _ -> raise (Parse_error str)
             end
             | head :: rest -> begin match head with
-                | "," | "." | ";" | ":" | "LRB" | "RRB"
-                | "conj" | "*START*" | "*END*" | "*UNKNOWN*" as s
-                    -> parse' (`Cat (`Punct s) :: stack) rest
                 | "S" | "N" | "NP" | "PP" as s
                 -> (* see if a feature value follows *)
                     let (feat, rest') = Feature.parse rest in
@@ -214,7 +211,7 @@ struct
                 | "/"  -> parse' (`Slash (/:) :: stack) rest
                 | "\\" -> parse' (`Slash (|:) :: stack) rest
                 | "|" -> parse' (`Slash (||:) :: stack) rest
-                | _ -> raise (Parse_error str)
+                |  s -> parse' (`Cat (`Punct s) :: stack) rest
             end
         in parse' [] (preprocess str)
 
