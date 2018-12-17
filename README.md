@@ -9,7 +9,7 @@ OCaml implementation for A\* CCG parser in:
 #### Requirements
 
 * Python 3
-* OCaml (newer version)
+* OCaml (>= 4.05.0)
 * opam (opam-installer)
 
 ```
